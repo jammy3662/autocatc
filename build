@@ -1,0 +1,9 @@
+#!/bin/bash
+
+CLANG_FLAGS="\
+-Wno-deprecated"
+
+cd generated
+flex ../cat.l && \
+bison -d ../cat.y && \
+clang++ -I . -I .. lex.yy.c cat.tab.c ../main.cc -o ../autocatc $CLANG_FLAGS
