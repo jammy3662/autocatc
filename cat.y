@@ -35,6 +35,9 @@ int yywrap ();
 %token ROTATE_L /* <<< */
 %token ROTATE_R /* >>> */
 %token COMPARE /* == */
+%token INEQUAL /* != */
+%token AT_MOST /* <= */
+%token AT_LEAST /* >= */
 
 %token TAIL /* .. */
 %token ELLIPSES /* ... */
@@ -62,6 +65,28 @@ int yywrap ();
 %token CASE DEFAULT
 
 %token END_FILE
+
+/* Token Precedence */
+
+/* prefix */
+%right PREFIX GROUP LIST INCREMENT_PRE DECREMENT_PRE POSITIVE NEGATIVE '!' COMPLEMENT DEREFERENCE ADDRESS META
+
+/* postfix */
+%left POSTFIX	INCREMENT_POST DECREMENT_POST
+
+/* infix */
+%left '*' '/' '%'
+%left '+' '-'
+%left SHIFT_L SHIFT_R
+%nonassoc '<' AT_MOST '>' AT_LEAST
+%nonassoc COMPARE INEQUAL
+%left '&'
+%left '^'
+%left '|'
+%left AND
+%left OR
+%right '='
+%left ','
 
 %start unit
 
@@ -123,10 +148,15 @@ include:
 
 declaration:
 
-	qualifiers object_declaration
-|	qualifiers function_declaration
-|	qualifiers structure_declaration
-| qualifiers enum_declaration
+	qualified_declaration
+| object_declaration
+|	function_declaration
+|	structure_declaration
+| enum_declaration
+
+qualified_declaration:
+	
+	qualifiers declaration
 
 structure_declaration:
 	
@@ -203,7 +233,6 @@ qualifiers:
 
 	qualifiers qualifier
 |	qualifier
-|	%empty
 
 qualifier:
 
@@ -211,17 +240,6 @@ qualifier:
 |	STATIC
 |	EXTERN
 | INLINE
-
-optional_const_qualifier:
-	
-	CONST
-|	%empty
-
-math_qualifiers:
-	
-	math_qualifiers math_qualifier
-|	math_qualifier
-|	%empty
 
 math_qualifier:
 
@@ -248,12 +266,49 @@ short:
 
 type_qualifiers:
 	
-	optional_const_qualifier math_qualifiers
-|	math_qualifiers optional_const_qualifier
+	type_qualifiers type_qualifier
+|	type_qualifier
+
+type_qualifier:
+	
+	CONST
+|	math_qualifier
 
 type:
 	
-	type_qualifiers datatype
+	type_qualifiers underlying_type indirection
+|	underlying_type indirection
+
+underlying_type:
+	
+	datatype
+|	TYPEOF name
+
+indirection:
+	
+	cat_ptrs
+|	c_ptrs
+| %empty
+
+cat_ptrs:
+	
+	cat_ptrs cat_ptr
+|	cat_ptr
+
+cat_ptr:
+	
+	'~' CONST
+|	'~'
+
+c_ptrs:
+	
+	c_ptrs c_ptr
+|	c_ptr
+
+c_ptr:
+	
+	'*' CONST
+|	'*'
 
 datatype:
 	
@@ -277,7 +332,9 @@ instances:
 
 instance:
 
-	counted_instance
+	label
+|	label '=' single_expression
+|	counted_instance
 |	counted_instance '=' single_expression
 
 counted_instance:
@@ -287,7 +344,7 @@ counted_instance:
 
 object_declaration:
 	
-	variable_declaration ';'
+	variable_declaration optional_semicolon
 |	function_declaration
 
 variable_declarations:
@@ -309,7 +366,6 @@ tuple:
 	'(' variable_declarations ')'
 |	'(' ')'
 
-
 expression:
 	
 	expression ',' single_expression
@@ -317,35 +373,85 @@ expression:
 
 single_expression:
 	
-	meta_value
-|	object_value
+	object_value
+| const_value
+| operation
+| '(' expression ')'
+|	'[' expression ']'
+
+const_value:
+	
+	CONST_INT
+|	CONST_FLOAT
+|	CONST_CHAR 
+|	CONST_STRING
 
 object_value:
 
 	name
 
-meta_value:
+operation:
+	
+	prefix_operation
+|	infix_operation
+|	postfix_operation
 
-	sizeof
-|	countof
-|	nameof
-| typeof
+prefix_operation:
+		
+	prefix_operator expression
+|	'~' expression
 
-sizeof:
+prefix_operator:
 
-	SIZEOF expression
+	'(' %prec GROUP
+| '[' %prec LIST	
+|	INCREMENT %prec INCREMENT_POST
+|	DECREMENT %prec DECREMENT_POST
+|	'+' %prec POSITIVE
+|	'-' %prec NEGATIVE
+|	'!' %prec '!'
+| '~' %prec COMPLEMENT
+| '*' %prec DEREFERENCE
+| '&' %prec ADDRESS
+|	SIZEOF %prec META
+| COUNTOF %prec META
+| NAMEOF %prec META
 
-countof:
+postfix_operation:
+	
+	expression postfix_operator
 
-	COUNTOF	expression
+postfix_operator:
 
-nameof:
+	INCREMENT %prec INCREMENT_PRE
+|	DECREMENT %prec DECREMENT_PRE
+| '(' %prec GROUP
+| '[' %prec LIST
 
-	NAMEOF name
+infix_operation:
 
-typeof:
+	expression infix_operator expression
+	expression assign_operator expression
 
-	TYPEOF name
+infix_operator:
+
+	infix_assignable_operator	
+|	AND	|	OR
+|	'<' | AT_MOST | '>' | AT_LEAST
+|	COMPARE | INEQUAL
+
+infix_assignable_operator:
+
+	'*' | '/' | '%'
+|	'+' | '-'
+|	SHIFT_L | SHIFT_R
+|	ROTATE_L | ROTATE_R
+|	'&' | '^' | '|'
+
+assign_operator:
+	
+	'='
+|	infix_assignable_operator '='
 
 %%
 

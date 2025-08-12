@@ -8,7 +8,7 @@
 
 struct Location
 {
-	short line, column;
+	short line = 1, column = 1;
 	char* source_file;
 };
 
@@ -86,20 +86,22 @@ struct Token
 	int kind;
 	Location location;
 	
-	union {
 	char* text;
-	long long int integer;
-	long double decimal;
+	union
+	{
+		long long int integer;
+		long double decimal;
 	};
 };
 
-struct
+extern struct current
 {
-	bool line_comment = false;
-	byte block_comment_depth = 0;
+	bool line_comment;
+	byte block_comment_depth;
 	
-	std::stringstream comment;
+	char* comment;
 	
+	Location location;
 	Token token;
 }
 current;

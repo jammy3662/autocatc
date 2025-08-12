@@ -1,13 +1,16 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "ints.h"
 #include "lex.yy.h"
 #include "cat.tab.h"
+#include "token.h"
+#include "ints.h"
 
 #define PROGRAM_NAME "autocatc"
 
 extern int yydebug;
+
+int test();
 
 int main (int argc, char** argv)
 {
@@ -35,18 +38,39 @@ int main (int argc, char** argv)
 				fprintf (stderr, "File couldn't open (%s)\n", argv[i]);
 				return 1;
 			}
+			current.location.source_file = argv[i];
 			printf ("-- Parsing '%s' --\n", argv[i]);
+			test();
 		}
 	}
 	else
 	{
 		yyin = stdin;
+		current.location.source_file = "stdin";
 		printf (PROGRAM_NAME " - Reading from standard input\n");
+		return test();
 	}
 	
-	int parse = yyparse ();
+	return 0;
+}
+
+int test()
+{
+	int result;
+	
+	do
+	{
+		result = yylex();
+		auto text = current.token.text;
+		printf ("%s = %i at %s:%i:%i\n", text, result, current.location.source_file, current.token.location.line, current.token.location.column);
+	}
+	while (nonzero result);
+	
+	result = yyparse ();
 	
 	if (yyin isnt stdin) fclose (yyin);
 	
-	return parse;
+	return result;
+	// yay
+	// hooray
 }

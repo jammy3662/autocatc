@@ -5,70 +5,138 @@
 #include "token.h"
 #include "cat.tab.h"
 
-typedef std::string string;
+struct current current;
 
-// return value and also store in current context 
+#define remove_quotes false
+
+#define advance \
+\
+	current.token.location = current.location; \
+	current.location.column += strlen (yytext); \
+	current.line_comment = false;
+
+#define copy_yy(ID) ID = yytext
+#define copy_yy_current copy_yy(current.token.text)
+
+// return value and also store in current.context 
 #define return(_) current.token.kind = _; return _;
 
 // remove cat-format characters
 #define remove_characters(RESULT, ...) \
 \
-	string str = yytext; \
+	char* RESULT = (char*) malloc (strlen (yytext) * sizeof (char)); \
 \
+{ \
 	char to_remove[] = {__VA_ARGS__}; \
 \
-	for (char c : to_remove) \
+	char* c = yytext; \
+	for (; nonzero *c; ++c) \
 	{ \
-		auto position = str.find (c); \
-		while (position isnt string::npos) \
-			str.erase (position); \
+		for (char ch_rm : to_remove) if (*c is ch_rm) continue; \
+\
+		RESULT [c-yytext] = *c; \
 	} \
-	char* RESULT = (char*) str.c_str();
+	RESULT [c-yytext] = 0; \
+}
 
 %}
 
 %%
 
-"!" { return ('!'); }
-"#" { return ('#'); }
-"$" { return ('$'); }
-"%" { return ('%'); }
-"&" { return ('&'); }
-"*" { return ('*'); }
-"+" { return ('+'); }
-"," { return (','); }
-"-" { return ('-'); }
-"." { return ('.'); }
-"/" { return ('/'); }
-":" { return (':'); }
-";" { return (';'); }
-"<" { return ('<'); }
-">" { return ('>'); }
-"=" { return ('='); }
-"?" { return ('?'); }
-"@" { return ('@'); }
-"^" { return ('^'); }
-"_" { return ('_'); }
-"|" { return ('|'); }
-"~" { return ('~'); }
+"(" { advance; copy_yy_current; return ('('); }
+")" { advance; copy_yy_current; return (')'); }
+"[" { advance; copy_yy_current; return ('['); }
+"]" { advance; copy_yy_current; return (']'); }
+"{" { advance; copy_yy_current; return ('{'); }
+"}" { advance; copy_yy_current; return ('}'); }
 
-"&&" { return (AND); }
-"||" { return (OR); }
-"++" { return (INCREMENT); }
-"--" { return (DECREMENT); }
-"<<" { return (SHIFT_L); }
-">>" { return (SHIFT_R); }
-"==" { return (COMPARE); }
+"!" { advance; copy_yy_current; return ('!'); }
+"#" { advance; copy_yy_current; return ('#'); }
+"$" { advance; copy_yy_current; return ('$'); }
+"%" { advance; copy_yy_current; return ('%'); }
+"&" { advance; copy_yy_current; return ('&'); }
+"*" { advance; copy_yy_current; return ('*'); }
+"+" { advance; copy_yy_current; return ('+'); }
+"," { advance; copy_yy_current; return (','); }
+"-" { advance; copy_yy_current; return ('-'); }
+"." { advance; copy_yy_current; return ('.'); }
+"/" { advance; copy_yy_current; return ('/'); }
+":" { advance; copy_yy_current; return (':'); }
+";" { advance; copy_yy_current; return (';'); }
+"<" { advance; copy_yy_current; return ('<'); }
+">" { advance; copy_yy_current; return ('>'); }
+"=" { advance; copy_yy_current; return ('='); }
+"?" { advance; copy_yy_current; return ('?'); }
+"@" { advance; copy_yy_current; return ('@'); }
+"^" { advance; copy_yy_current; return ('^'); }
+"_" { advance; copy_yy_current; return ('_'); }
+"|" { advance; copy_yy_current; return ('|'); }
+"~" { advance; copy_yy_current; return ('~'); }
 
-"<<<" { return (ROTATE_L); }
-">>>" { return (ROTATE_R); }
+"&&" { advance; copy_yy_current; return (AND); }
+"||" { advance; copy_yy_current; return (OR); }
+"++" { advance; copy_yy_current; return (INCREMENT); }
+"--" { advance; copy_yy_current; return (DECREMENT); }
+"<<" { advance; copy_yy_current; return (SHIFT_L); }
+">>" { advance; copy_yy_current; return (SHIFT_R); }
+"==" { advance; copy_yy_current; return (COMPARE); }
+"!=" { advance; copy_yy_current; return (INEQUAL); }
+"<=" { advance; copy_yy_current; return (AT_MOST); }
+">=" { advance; copy_yy_current; return (AT_LEAST); }
 
-".."  { return (TAIL); }
-"..." { return (ELLIPSES); }
+"<<<" { advance; copy_yy_current; return (ROTATE_L); }
+">>>" { advance; copy_yy_current; return (ROTATE_R); }
+
+".."  { advance; copy_yy_current; return (TAIL); }
+"..." { advance; copy_yy_current; return (ELLIPSES); }
+
+"include"	{ advance; copy_yy_current; return (INCLUDE); }
+"inline"	{ advance; copy_yy_current; return (INLINE); }
+"extern"	{ advance; copy_yy_current; return (EXTERN); }
+
+"sizeof"	{ advance; copy_yy_current; return (SIZEOF); }
+"countof"	{ advance; copy_yy_current; return (COUNTOF); }
+"nameof"	{ advance; copy_yy_current; return (NAMEOF); }
+"typeof"	{ advance; copy_yy_current; return (TYPEOF); }
+
+"local"		{ advance; copy_yy_current; return (LOCAL); }
+"static"	{ advance; copy_yy_current; return (STATIC); }
+"const"		{ advance; copy_yy_current; return (CONST); }
+
+"signed"		{ advance; copy_yy_current; return (SIGNED); }
+"unsigned"	{ advance; copy_yy_current; return (UNSIGNED); }
+"complex"		{ advance; copy_yy_current; return (COMPLEX); }
+"imaginary"	{ advance; copy_yy_current; return (IMAGINARY); }
+"long"			{ advance; copy_yy_current; return (LONG); }
+"double"		{ advance; copy_yy_current; return (DOUBLE); }
+
+"bit"		{ advance; copy_yy_current; return (BIT); }
+"char"	{ advance; copy_yy_current; return (CHAR); }
+"byte"	{ advance; copy_yy_current; return (BYTE); }
+"short"	{ advance; copy_yy_current; return (SHORT); }
+"int"		{ advance; copy_yy_current; return (INT); }
+"float"	{ advance; copy_yy_current; return (FLOAT); }
+
+"break"			{ advance; copy_yy_current; return (BREAK); }
+"continue"	{ advance; copy_yy_current; return (CONTINUE); }
+"return"		{ advance; copy_yy_current; return (RETURN); }
+"goto"			{ advance; copy_yy_current; return (GOTO); }
+
+"while"	{ advance; copy_yy_current; return (WHILE); }
+"do"		{ advance; copy_yy_current; return (DO); }
+"for"		{ advance; copy_yy_current; return (FOR); }
+
+"if"			{ advance; copy_yy_current; return (IF); }
+"else"		{ advance; copy_yy_current; return (ELSE); }
+"switch"	{ advance; copy_yy_current; return (SWITCH); }
+"case"		{ advance; copy_yy_current; return (CASE); }
+"default"	{ advance; copy_yy_current; return (DEFAULT); }
 
 [_a-zA-Z][\`_a-zA-Z0-9]* {
 	
 	// name / identifier
+	advance;
+	
 	remove_characters (text, '`');
 	
 	current.token.text = text;
@@ -78,6 +146,8 @@ typedef std::string string;
 [+-]?[1-9][\`_0-9] {
 	
 	// integer constant
+	advance;
+	
 	remove_characters (text, '_','`');
 	
 	current.token.text = text;
@@ -88,6 +158,8 @@ typedef std::string string;
 [+-]?0[\`_0-9]* {
 	
 	// octal constant
+	advance;
+	
 	remove_characters (text, '_','`');
 	
 	current.token.text = text;
@@ -98,6 +170,8 @@ typedef std::string string;
 [+-]?0?[xX][\`_0-9a-fA-F]* {
 	
 	// hexadecimal constant
+	advance;
+	
 	remove_characters (text, '_','`');
 	
 	current.token.text = text;
@@ -108,6 +182,8 @@ typedef std::string string;
 [+-]?0?[bB][\`_0-9]* {
 	
 	// binary constant
+	advance;
+	
 	remove_characters (text, 'b','B','_','`');
 	
 	current.token.text = text;
@@ -115,10 +191,12 @@ typedef std::string string;
 	return (CONST_INT);
 }
 
-([+-]?([0-9][\`_0-9]*)?\.[0-9][\`_0-9]*[fF]?)|([+-]?[1-9][\`_0-9][fF]?)  {
+([+-]?([0-9][\`_0-9]*)?\.[0-9][\`_0-9]*[fF]?)|([+-]?[1-9][\`_0-9][fF]?) {
 	
 	// TODO modify regex to support scientific notation
 	// decimal constant
+	advance;
+	
 	remove_characters (text, '_','`');
 	
 	current.token.text = text;
@@ -129,12 +207,15 @@ typedef std::string string;
 L?\'(\\.|[^\\"])*\' {
 	
 	// (multi-)character constant
-	string str = yytext;
+	advance;
 	
-	// remove the delimiting quotes
-	str.erase (0);
-	str.erase (str.size()-1);
-	char* text = (char*) str.c_str();
+	fast len = strlen (yytext);
+	char* text = (char*) malloc (len * sizeof (char));
+	
+	if (remove_quotes)
+		strncpy (text, yytext + 1, len-2);
+	else
+		strcpy (text, yytext);
 	
 	current.token.text = text;
 	return (CONST_CHAR);
@@ -143,31 +224,27 @@ L?\'(\\.|[^\\"])*\' {
 L?\"(\\.|[^\\"])*\" {
 	
 	// string constant
-	string str = yytext;
+	advance;
 	
-	// remove the delimiting quotes
-	str.erase (0);
-	str.erase (str.size()-1);
-	char* text = (char*) str.c_str();
+	fast len = strlen (yytext);
+	char* text = (char*) malloc (len * sizeof (char));
+	
+	if (remove_quotes)
+		strncpy (text, yytext + 1, len-2);
+	else
+		strcpy (text, yytext);
 	
 	current.token.text = text;
 	return (CONST_STRING);
 }
 
-\/\/(.*)\n {
+\/\/.* {
 	
 	// line comment
-	if (current.line_comment or
-	    current.block_comment_depth > 0)
-		// last line was a comment too, add onto that
-		current.comment << yytext;
-	else
-	{
-		// start a new line comment
-		current.line_comment = true;
-		current.comment.str("");
-		current.comment << yytext;
-	}
+	advance;
+	
+	current.comment = yytext;
+	current.token.text = yytext;
 	
 	// not the return() macro because
 	// we don't want comments to replace the earlier token
@@ -196,7 +273,10 @@ L?\"(\\.|[^\\"])*\" {
 \n {
 	
 	// newline (escaped AND unescaped)
-	current.token.location.line++;
+	current.location.line++;
+	current.location.column = 1;
 }
+
+. { current.location.column++; }
 
 %%
