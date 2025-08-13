@@ -62,6 +62,11 @@ int test()
 	{
 		result = yylex();
 		auto text = current.token.text;
+		
+		if (result is 0) continue;
+		switch (current.token.kind) {
+			case COMMENT_LINE...COMMENT_BLOCK: continue; default: break; }
+		
 		printf ("%s = %i at %s:%i:%i\n", text, result, current.location.source_file, current.token.location.line, current.token.location.column);
 	}
 	while (nonzero result);
@@ -74,3 +79,10 @@ int test()
 	// yay
 	// hooray
 }
+
+/* so yeah
+		we did some stuff
+	 this comment may work
+	*/
+
+void nothing();

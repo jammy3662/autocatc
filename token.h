@@ -96,10 +96,10 @@ struct Token
 
 extern struct current
 {
-	bool line_comment;
-	byte block_comment_depth;
+	bool line_comment = false;
+	byte block_comment_depth = 0;
 	
-	char* comment;
+	char* comment = 0;
 	
 	Location location;
 	Token token;
