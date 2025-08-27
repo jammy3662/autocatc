@@ -627,12 +627,10 @@ struct current current;
 
 void advance()
 {
-	current.location.column += strlen (yytext);
 	current.token.location = current.location;
+	current.location.column += strlen (yytext);
+	current.token.text = yytext;
 }
-
-#define copy_yy(ID) ID = yytext
-#define copy_yy_current copy_yy(current.token.text)
 
 // return value and also store in current.context 
 #define return(_) current.token.kind = _; return _;
@@ -655,8 +653,8 @@ void advance()
 	RESULT [c-yytext] = 0; \
 }
 
-#line 659 "lex.yy.c"
-#line 660 "lex.yy.c"
+#line 657 "lex.yy.c"
+#line 658 "lex.yy.c"
 
 #define INITIAL 0
 
@@ -871,10 +869,10 @@ YY_DECL
 		}
 
 	{
-#line 44 "../cat.l"
+#line 42 "../cat.l"
 
 
-#line 878 "lex.yy.c"
+#line 876 "lex.yy.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -933,387 +931,387 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 46 "../cat.l"
-{ advance(); copy_yy_current; return ('('); }
+#line 44 "../cat.l"
+{ advance(); return ('('); }
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 47 "../cat.l"
-{ advance(); copy_yy_current; return (')'); }
+#line 45 "../cat.l"
+{ advance(); return (')'); }
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 48 "../cat.l"
-{ advance(); copy_yy_current; return ('['); }
+#line 46 "../cat.l"
+{ advance(); return ('['); }
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 49 "../cat.l"
-{ advance(); copy_yy_current; return (']'); }
+#line 47 "../cat.l"
+{ advance(); return (']'); }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 50 "../cat.l"
-{ advance(); copy_yy_current; return ('{'); }
+#line 48 "../cat.l"
+{ advance(); return ('{'); }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 51 "../cat.l"
-{ advance(); copy_yy_current; return ('}'); }
+#line 49 "../cat.l"
+{ advance(); return ('}'); }
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 53 "../cat.l"
-{ advance(); copy_yy_current; return ('!'); }
+#line 51 "../cat.l"
+{ advance(); return ('!'); }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 54 "../cat.l"
-{ advance(); copy_yy_current; return ('#'); }
+#line 52 "../cat.l"
+{ advance(); return ('#'); }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 55 "../cat.l"
-{ advance(); copy_yy_current; return ('$'); }
+#line 53 "../cat.l"
+{ advance(); return ('$'); }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 56 "../cat.l"
-{ advance(); copy_yy_current; return ('%'); }
+#line 54 "../cat.l"
+{ advance(); return ('%'); }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 57 "../cat.l"
-{ advance(); copy_yy_current; return ('&'); }
+#line 55 "../cat.l"
+{ advance(); return ('&'); }
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 58 "../cat.l"
-{ advance(); copy_yy_current; return ('*'); }
+#line 56 "../cat.l"
+{ advance(); return ('*'); }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 59 "../cat.l"
-{ advance(); copy_yy_current; return ('+'); }
+#line 57 "../cat.l"
+{ advance(); return ('+'); }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 60 "../cat.l"
-{ advance(); copy_yy_current; return (','); }
+#line 58 "../cat.l"
+{ advance(); return (','); }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 61 "../cat.l"
-{ advance(); copy_yy_current; return ('-'); }
+#line 59 "../cat.l"
+{ advance(); return ('-'); }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 62 "../cat.l"
-{ advance(); copy_yy_current; return ('.'); }
+#line 60 "../cat.l"
+{ advance(); return ('.'); }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 63 "../cat.l"
-{ advance(); copy_yy_current; return ('/'); }
+#line 61 "../cat.l"
+{ advance(); return ('/'); }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 64 "../cat.l"
-{ advance(); copy_yy_current; return (':'); }
+#line 62 "../cat.l"
+{ advance(); return (':'); }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 65 "../cat.l"
-{ advance(); copy_yy_current; return (';'); }
+#line 63 "../cat.l"
+{ advance(); return (';'); }
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 66 "../cat.l"
-{ advance(); copy_yy_current; return ('<'); }
+#line 64 "../cat.l"
+{ advance(); return ('<'); }
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 67 "../cat.l"
-{ advance(); copy_yy_current; return ('>'); }
+#line 65 "../cat.l"
+{ advance(); return ('>'); }
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 68 "../cat.l"
-{ advance(); copy_yy_current; return ('='); }
+#line 66 "../cat.l"
+{ advance(); return ('='); }
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 69 "../cat.l"
-{ advance(); copy_yy_current; return ('?'); }
+#line 67 "../cat.l"
+{ advance(); return ('?'); }
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 70 "../cat.l"
-{ advance(); copy_yy_current; return ('@'); }
+#line 68 "../cat.l"
+{ advance(); return ('@'); }
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 71 "../cat.l"
-{ advance(); copy_yy_current; return ('^'); }
+#line 69 "../cat.l"
+{ advance(); return ('^'); }
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 72 "../cat.l"
-{ advance(); copy_yy_current; return ('_'); }
+#line 70 "../cat.l"
+{ advance(); return ('_'); }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 73 "../cat.l"
-{ advance(); copy_yy_current; return ('|'); }
+#line 71 "../cat.l"
+{ advance(); return ('|'); }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 74 "../cat.l"
-{ advance(); copy_yy_current; return ('~'); }
+#line 72 "../cat.l"
+{ advance(); return ('~'); }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 76 "../cat.l"
-{ advance(); copy_yy_current; return (AND); }
+#line 74 "../cat.l"
+{ advance(); return (AND); }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 77 "../cat.l"
-{ advance(); copy_yy_current; return (OR); }
+#line 75 "../cat.l"
+{ advance(); return (OR); }
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 78 "../cat.l"
-{ advance(); copy_yy_current; return (INCREMENT); }
+#line 76 "../cat.l"
+{ advance(); return (INCREMENT); }
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 79 "../cat.l"
-{ advance(); copy_yy_current; return (DECREMENT); }
+#line 77 "../cat.l"
+{ advance(); return (DECREMENT); }
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 80 "../cat.l"
-{ advance(); copy_yy_current; return (SHIFT_L); }
+#line 78 "../cat.l"
+{ advance(); return (SHIFT_L); }
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 81 "../cat.l"
-{ advance(); copy_yy_current; return (SHIFT_R); }
+#line 79 "../cat.l"
+{ advance(); return (SHIFT_R); }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 82 "../cat.l"
-{ advance(); copy_yy_current; return (COMPARE); }
+#line 80 "../cat.l"
+{ advance(); return (COMPARE); }
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 83 "../cat.l"
-{ advance(); copy_yy_current; return (INEQUAL); }
+#line 81 "../cat.l"
+{ advance(); return (INEQUAL); }
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 84 "../cat.l"
-{ advance(); copy_yy_current; return (AT_MOST); }
+#line 82 "../cat.l"
+{ advance(); return (AT_MOST); }
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 85 "../cat.l"
-{ advance(); copy_yy_current; return (AT_LEAST); }
+#line 83 "../cat.l"
+{ advance(); return (AT_LEAST); }
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 87 "../cat.l"
-{ advance(); copy_yy_current; return (ROTATE_L); }
+#line 85 "../cat.l"
+{ advance(); return (ROTATE_L); }
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 88 "../cat.l"
-{ advance(); copy_yy_current; return (ROTATE_R); }
+#line 86 "../cat.l"
+{ advance(); return (ROTATE_R); }
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 90 "../cat.l"
-{ advance(); copy_yy_current; return (TAIL); }
+#line 88 "../cat.l"
+{ advance(); return (TAIL); }
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 91 "../cat.l"
-{ advance(); copy_yy_current; return (ELLIPSES); }
+#line 89 "../cat.l"
+{ advance(); return (ELLIPSES); }
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 93 "../cat.l"
-{ advance(); copy_yy_current; return (INCLUDE); }
+#line 91 "../cat.l"
+{ advance(); return (INCLUDE); }
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 94 "../cat.l"
-{ advance(); copy_yy_current; return (INLINE); }
+#line 92 "../cat.l"
+{ advance(); return (INLINE); }
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 95 "../cat.l"
-{ advance(); copy_yy_current; return (EXTERN); }
+#line 93 "../cat.l"
+{ advance(); return (EXTERN); }
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 97 "../cat.l"
-{ advance(); copy_yy_current; return (SIZEOF); }
+#line 95 "../cat.l"
+{ advance(); return (SIZEOF); }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 98 "../cat.l"
-{ advance(); copy_yy_current; return (COUNTOF); }
+#line 96 "../cat.l"
+{ advance(); return (COUNTOF); }
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 99 "../cat.l"
-{ advance(); copy_yy_current; return (NAMEOF); }
+#line 97 "../cat.l"
+{ advance(); return (NAMEOF); }
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 100 "../cat.l"
-{ advance(); copy_yy_current; return (TYPEOF); }
+#line 98 "../cat.l"
+{ advance(); return (TYPEOF); }
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 102 "../cat.l"
-{ advance(); copy_yy_current; return (LOCAL); }
+#line 100 "../cat.l"
+{ advance(); return (LOCAL); }
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 103 "../cat.l"
-{ advance(); copy_yy_current; return (STATIC); }
+#line 101 "../cat.l"
+{ advance(); return (STATIC); }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 104 "../cat.l"
-{ advance(); copy_yy_current; return (CONST); }
+#line 102 "../cat.l"
+{ advance(); return (CONST); }
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 106 "../cat.l"
-{ advance(); copy_yy_current; return (SIGNED); }
+#line 104 "../cat.l"
+{ advance(); return (SIGNED); }
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 107 "../cat.l"
-{ advance(); copy_yy_current; return (UNSIGNED); }
+#line 105 "../cat.l"
+{ advance(); return (UNSIGNED); }
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 108 "../cat.l"
-{ advance(); copy_yy_current; return (COMPLEX); }
+#line 106 "../cat.l"
+{ advance(); return (COMPLEX); }
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 109 "../cat.l"
-{ advance(); copy_yy_current; return (IMAGINARY); }
+#line 107 "../cat.l"
+{ advance(); return (IMAGINARY); }
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 110 "../cat.l"
-{ advance(); copy_yy_current; return (LONG); }
+#line 108 "../cat.l"
+{ advance(); return (LONG); }
 	YY_BREAK
 case 58:
 YY_RULE_SETUP
-#line 111 "../cat.l"
-{ advance(); copy_yy_current; return (DOUBLE); }
+#line 109 "../cat.l"
+{ advance(); return (DOUBLE); }
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
-#line 113 "../cat.l"
-{ advance(); copy_yy_current; return (BIT); }
+#line 111 "../cat.l"
+{ advance(); return (BIT); }
 	YY_BREAK
 case 60:
 YY_RULE_SETUP
-#line 114 "../cat.l"
-{ advance(); copy_yy_current; return (CHAR); }
+#line 112 "../cat.l"
+{ advance(); return (CHAR); }
 	YY_BREAK
 case 61:
 YY_RULE_SETUP
-#line 115 "../cat.l"
-{ advance(); copy_yy_current; return (BYTE); }
+#line 113 "../cat.l"
+{ advance(); return (BYTE); }
 	YY_BREAK
 case 62:
 YY_RULE_SETUP
-#line 116 "../cat.l"
-{ advance(); copy_yy_current; return (SHORT); }
+#line 114 "../cat.l"
+{ advance(); return (SHORT); }
 	YY_BREAK
 case 63:
 YY_RULE_SETUP
-#line 117 "../cat.l"
-{ advance(); copy_yy_current; return (INT); }
+#line 115 "../cat.l"
+{ advance(); return (INT); }
 	YY_BREAK
 case 64:
 YY_RULE_SETUP
-#line 118 "../cat.l"
-{ advance(); copy_yy_current; return (FLOAT); }
+#line 116 "../cat.l"
+{ advance(); return (FLOAT); }
 	YY_BREAK
 case 65:
 YY_RULE_SETUP
-#line 120 "../cat.l"
-{ advance(); copy_yy_current; return (BREAK); }
+#line 118 "../cat.l"
+{ advance(); return (BREAK); }
 	YY_BREAK
 case 66:
 YY_RULE_SETUP
-#line 121 "../cat.l"
-{ advance(); copy_yy_current; return (CONTINUE); }
+#line 119 "../cat.l"
+{ advance(); return (CONTINUE); }
 	YY_BREAK
 case 67:
 YY_RULE_SETUP
-#line 122 "../cat.l"
-{ advance(); copy_yy_current; return (RETURN); }
+#line 120 "../cat.l"
+{ advance(); return (RETURN); }
 	YY_BREAK
 case 68:
 YY_RULE_SETUP
-#line 123 "../cat.l"
-{ advance(); copy_yy_current; return (GOTO); }
+#line 121 "../cat.l"
+{ advance(); return (GOTO); }
 	YY_BREAK
 case 69:
 YY_RULE_SETUP
-#line 125 "../cat.l"
-{ advance(); copy_yy_current; return (WHILE); }
+#line 123 "../cat.l"
+{ advance(); return (WHILE); }
 	YY_BREAK
 case 70:
 YY_RULE_SETUP
-#line 126 "../cat.l"
-{ advance(); copy_yy_current; return (DO); }
+#line 124 "../cat.l"
+{ advance(); return (DO); }
 	YY_BREAK
 case 71:
 YY_RULE_SETUP
-#line 127 "../cat.l"
-{ advance(); copy_yy_current; return (FOR); }
+#line 125 "../cat.l"
+{ advance(); return (FOR); }
 	YY_BREAK
 case 72:
 YY_RULE_SETUP
-#line 129 "../cat.l"
-{ advance(); copy_yy_current; return (IF); }
+#line 127 "../cat.l"
+{ advance(); return (IF); }
 	YY_BREAK
 case 73:
 YY_RULE_SETUP
-#line 130 "../cat.l"
-{ advance(); copy_yy_current; return (ELSE); }
+#line 128 "../cat.l"
+{ advance(); return (ELSE); }
 	YY_BREAK
 case 74:
 YY_RULE_SETUP
-#line 131 "../cat.l"
-{ advance(); copy_yy_current; return (SWITCH); }
+#line 129 "../cat.l"
+{ advance(); return (SWITCH); }
 	YY_BREAK
 case 75:
 YY_RULE_SETUP
-#line 132 "../cat.l"
-{ advance(); copy_yy_current; return (CASE); }
+#line 130 "../cat.l"
+{ advance(); return (CASE); }
 	YY_BREAK
 case 76:
 YY_RULE_SETUP
-#line 133 "../cat.l"
-{ advance(); copy_yy_current; return (DEFAULT); }
+#line 131 "../cat.l"
+{ advance(); return (DEFAULT); }
 	YY_BREAK
 case 77:
 YY_RULE_SETUP
-#line 135 "../cat.l"
+#line 133 "../cat.l"
 {
 	
 	// name / identifier
@@ -1327,7 +1325,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 78:
 YY_RULE_SETUP
-#line 146 "../cat.l"
+#line 144 "../cat.l"
 {
 	
 	// integer constant
@@ -1342,7 +1340,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 79:
 YY_RULE_SETUP
-#line 158 "../cat.l"
+#line 156 "../cat.l"
 {
 	
 	// octal constant
@@ -1357,7 +1355,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 80:
 YY_RULE_SETUP
-#line 170 "../cat.l"
+#line 168 "../cat.l"
 {
 	
 	// hexadecimal constant
@@ -1372,7 +1370,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 81:
 YY_RULE_SETUP
-#line 182 "../cat.l"
+#line 180 "../cat.l"
 {
 	
 	// binary constant
@@ -1387,7 +1385,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 82:
 YY_RULE_SETUP
-#line 194 "../cat.l"
+#line 192 "../cat.l"
 {
 	
 	// TODO modify regex to support scientific notation
@@ -1404,7 +1402,7 @@ YY_RULE_SETUP
 case 83:
 /* rule 83 can match eol */
 YY_RULE_SETUP
-#line 207 "../cat.l"
+#line 205 "../cat.l"
 {
 	
 	// (multi-)character constant
@@ -1425,7 +1423,7 @@ YY_RULE_SETUP
 case 84:
 /* rule 84 can match eol */
 YY_RULE_SETUP
-#line 224 "../cat.l"
+#line 222 "../cat.l"
 {
 	
 	// string constant
@@ -1445,7 +1443,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 85:
 YY_RULE_SETUP
-#line 241 "../cat.l"
+#line 239 "../cat.l"
 {
 	
 	// line comment
@@ -1460,7 +1458,7 @@ YY_RULE_SETUP
 case 86:
 /* rule 86 can match eol */
 YY_RULE_SETUP
-#line 252 "../cat.l"
+#line 250 "../cat.l"
 {
 	
 	// open block comment
@@ -1485,7 +1483,7 @@ YY_RULE_SETUP
 case 87:
 /* rule 87 can match eol */
 YY_RULE_SETUP
-#line 273 "../cat.l"
+#line 271 "../cat.l"
 {
 	current.location.line++;
 	current.location.column = 1;
@@ -1493,15 +1491,15 @@ YY_RULE_SETUP
 	YY_BREAK
 case 88:
 YY_RULE_SETUP
-#line 278 "../cat.l"
+#line 276 "../cat.l"
 { current.location.column++; }
 	YY_BREAK
 case 89:
 YY_RULE_SETUP
-#line 280 "../cat.l"
+#line 278 "../cat.l"
 ECHO;
 	YY_BREAK
-#line 1505 "lex.yy.c"
+#line 1503 "lex.yy.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2469,6 +2467,6 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 280 "../cat.l"
+#line 278 "../cat.l"
 
 

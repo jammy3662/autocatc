@@ -10,7 +10,8 @@
 
 extern int yydebug;
 
-int test();
+int test_scanner();
+int (*test)() = test_scanner;
 
 int main (int argc, char** argv)
 {
@@ -18,26 +19,43 @@ int main (int argc, char** argv)
 	
 	yyin = stdin;
 	
+	enum Arg {FILE, FLAG};
+	Arg inputs [argc];
+	
 	for (int i = 0; i < argc; ++i)
 	{
-		if (!strcmp(argv[i], "--help"))
+		if (zero strcmp (argv[i], "--help"))
 		{
 			printf (PROGRAM_NAME " [--help | SRC_FILE1 SRC_FILE2 ...]\n"
 							"SRC_FILE defaults to standard input\n");
 			return 0;
-		} 
+		}
+		else
+		if (zero strcmp (argv[i], "scan"))
+			test = test_scanner,
+			inputs [i] = FLAG;
+		else
+		if (zero strcmp (argv[i], "parse"))
+			test = yyparse,
+			inputs [i] = FLAG;
+		else
+			inputs [i] = FILE;
 	}
 	
 	if (argc > 1)
 	{
 		for (int i = 1; i <	argc; ++i)
 		{
+			if (inputs [i] isnt FILE) continue;
+			
 			yyin = fopen (argv[i], "r");
+			
 			if (!yyin)
 			{
 				fprintf (stderr, "File couldn't open (%s)\n", argv[i]);
 				return 1;
 			}
+			
 			current.location.source_file = argv[i];
 			printf ("-- Parsing '%s' --\n", argv[i]);
 			test();
@@ -54,7 +72,7 @@ int main (int argc, char** argv)
 	return 0;
 }
 
-int test()
+int test_scanner()
 {
 	int result;
 	
@@ -67,22 +85,11 @@ int test()
 		switch (current.token.kind) {
 			case COMMENT_LINE...COMMENT_BLOCK: continue; default: break; }
 		
-		printf ("%s = %i at %s:%i:%i\n", text, result, current.location.source_file, current.token.location.line, current.token.location.column);
+		printf ("%s\t\t\t%i (%s:%i:%i)\n", text, result, current.location.source_file, current.token.location.line, current.token.location.column);
 	}
 	while (nonzero result);
-	
-	result = yyparse ();
 	
 	if (yyin isnt stdin) fclose (yyin);
 	
 	return result;
-	// yay
-	// hooray
 }
-
-/* so yeah
-		we did some stuff
-	 this comment may work
-	*/
-
-void nothing();

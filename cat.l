@@ -11,12 +11,10 @@ struct current current;
 
 void advance()
 {
-	current.location.column += strlen (yytext);
 	current.token.location = current.location;
+	current.location.column += strlen (yytext);
+	current.token.text = yytext;
 }
-
-#define copy_yy(ID) ID = yytext
-#define copy_yy_current copy_yy(current.token.text)
 
 // return value and also store in current.context 
 #define return(_) current.token.kind = _; return _;
@@ -43,94 +41,94 @@ void advance()
 
 %%
 
-"(" { advance(); copy_yy_current; return ('('); }
-")" { advance(); copy_yy_current; return (')'); }
-"[" { advance(); copy_yy_current; return ('['); }
-"]" { advance(); copy_yy_current; return (']'); }
-"{" { advance(); copy_yy_current; return ('{'); }
-"}" { advance(); copy_yy_current; return ('}'); }
+"(" { advance(); return ('('); }
+")" { advance(); return (')'); }
+"[" { advance(); return ('['); }
+"]" { advance(); return (']'); }
+"{" { advance(); return ('{'); }
+"}" { advance(); return ('}'); }
 
-"!" { advance(); copy_yy_current; return ('!'); }
-"#" { advance(); copy_yy_current; return ('#'); }
-"$" { advance(); copy_yy_current; return ('$'); }
-"%" { advance(); copy_yy_current; return ('%'); }
-"&" { advance(); copy_yy_current; return ('&'); }
-"*" { advance(); copy_yy_current; return ('*'); }
-"+" { advance(); copy_yy_current; return ('+'); }
-"," { advance(); copy_yy_current; return (','); }
-"-" { advance(); copy_yy_current; return ('-'); }
-"." { advance(); copy_yy_current; return ('.'); }
-"/" { advance(); copy_yy_current; return ('/'); }
-":" { advance(); copy_yy_current; return (':'); }
-";" { advance(); copy_yy_current; return (';'); }
-"<" { advance(); copy_yy_current; return ('<'); }
-">" { advance(); copy_yy_current; return ('>'); }
-"=" { advance(); copy_yy_current; return ('='); }
-"?" { advance(); copy_yy_current; return ('?'); }
-"@" { advance(); copy_yy_current; return ('@'); }
-"^" { advance(); copy_yy_current; return ('^'); }
-"_" { advance(); copy_yy_current; return ('_'); }
-"|" { advance(); copy_yy_current; return ('|'); }
-"~" { advance(); copy_yy_current; return ('~'); }
+"!" { advance(); return ('!'); }
+"#" { advance(); return ('#'); }
+"$" { advance(); return ('$'); }
+"%" { advance(); return ('%'); }
+"&" { advance(); return ('&'); }
+"*" { advance(); return ('*'); }
+"+" { advance(); return ('+'); }
+"," { advance(); return (','); }
+"-" { advance(); return ('-'); }
+"." { advance(); return ('.'); }
+"/" { advance(); return ('/'); }
+":" { advance(); return (':'); }
+";" { advance(); return (';'); }
+"<" { advance(); return ('<'); }
+">" { advance(); return ('>'); }
+"=" { advance(); return ('='); }
+"?" { advance(); return ('?'); }
+"@" { advance(); return ('@'); }
+"^" { advance(); return ('^'); }
+"_" { advance(); return ('_'); }
+"|" { advance(); return ('|'); }
+"~" { advance(); return ('~'); }
 
-"&&" { advance(); copy_yy_current; return (AND); }
-"||" { advance(); copy_yy_current; return (OR); }
-"++" { advance(); copy_yy_current; return (INCREMENT); }
-"--" { advance(); copy_yy_current; return (DECREMENT); }
-"<<" { advance(); copy_yy_current; return (SHIFT_L); }
-">>" { advance(); copy_yy_current; return (SHIFT_R); }
-"==" { advance(); copy_yy_current; return (COMPARE); }
-"!=" { advance(); copy_yy_current; return (INEQUAL); }
-"<=" { advance(); copy_yy_current; return (AT_MOST); }
-">=" { advance(); copy_yy_current; return (AT_LEAST); }
+"&&" { advance(); return (AND); }
+"||" { advance(); return (OR); }
+"++" { advance(); return (INCREMENT); }
+"--" { advance(); return (DECREMENT); }
+"<<" { advance(); return (SHIFT_L); }
+">>" { advance(); return (SHIFT_R); }
+"==" { advance(); return (COMPARE); }
+"!=" { advance(); return (INEQUAL); }
+"<=" { advance(); return (AT_MOST); }
+">=" { advance(); return (AT_LEAST); }
 
-"<<<" { advance(); copy_yy_current; return (ROTATE_L); }
-">>>" { advance(); copy_yy_current; return (ROTATE_R); }
+"<<<" { advance(); return (ROTATE_L); }
+">>>" { advance(); return (ROTATE_R); }
 
-".."  { advance(); copy_yy_current; return (TAIL); }
-"..." { advance(); copy_yy_current; return (ELLIPSES); }
+".."  { advance(); return (TAIL); }
+"..." { advance(); return (ELLIPSES); }
 
-"include"	{ advance(); copy_yy_current; return (INCLUDE); }
-"inline"	{ advance(); copy_yy_current; return (INLINE); }
-"extern"	{ advance(); copy_yy_current; return (EXTERN); }
+"include"	{ advance(); return (INCLUDE); }
+"inline"	{ advance(); return (INLINE); }
+"extern"	{ advance(); return (EXTERN); }
 
-"sizeof"	{ advance(); copy_yy_current; return (SIZEOF); }
-"countof"	{ advance(); copy_yy_current; return (COUNTOF); }
-"nameof"	{ advance(); copy_yy_current; return (NAMEOF); }
-"typeof"	{ advance(); copy_yy_current; return (TYPEOF); }
+"sizeof"	{ advance(); return (SIZEOF); }
+"countof"	{ advance(); return (COUNTOF); }
+"nameof"	{ advance(); return (NAMEOF); }
+"typeof"	{ advance(); return (TYPEOF); }
 
-"local"		{ advance(); copy_yy_current; return (LOCAL); }
-"static"	{ advance(); copy_yy_current; return (STATIC); }
-"const"		{ advance(); copy_yy_current; return (CONST); }
+"local"		{ advance(); return (LOCAL); }
+"static"	{ advance(); return (STATIC); }
+"const"		{ advance(); return (CONST); }
 
-"signed"		{ advance(); copy_yy_current; return (SIGNED); }
-"unsigned"	{ advance(); copy_yy_current; return (UNSIGNED); }
-"complex"		{ advance(); copy_yy_current; return (COMPLEX); }
-"imaginary"	{ advance(); copy_yy_current; return (IMAGINARY); }
-"long"			{ advance(); copy_yy_current; return (LONG); }
-"double"		{ advance(); copy_yy_current; return (DOUBLE); }
+"signed"		{ advance(); return (SIGNED); }
+"unsigned"	{ advance(); return (UNSIGNED); }
+"complex"		{ advance(); return (COMPLEX); }
+"imaginary"	{ advance(); return (IMAGINARY); }
+"long"			{ advance(); return (LONG); }
+"double"		{ advance(); return (DOUBLE); }
 
-"bit"		{ advance(); copy_yy_current; return (BIT); }
-"char"	{ advance(); copy_yy_current; return (CHAR); }
-"byte"	{ advance(); copy_yy_current; return (BYTE); }
-"short"	{ advance(); copy_yy_current; return (SHORT); }
-"int"		{ advance(); copy_yy_current; return (INT); }
-"float"	{ advance(); copy_yy_current; return (FLOAT); }
+"bit"		{ advance(); return (BIT); }
+"char"	{ advance(); return (CHAR); }
+"byte"	{ advance(); return (BYTE); }
+"short"	{ advance(); return (SHORT); }
+"int"		{ advance(); return (INT); }
+"float"	{ advance(); return (FLOAT); }
 
-"break"			{ advance(); copy_yy_current; return (BREAK); }
-"continue"	{ advance(); copy_yy_current; return (CONTINUE); }
-"return"		{ advance(); copy_yy_current; return (RETURN); }
-"goto"			{ advance(); copy_yy_current; return (GOTO); }
+"break"			{ advance(); return (BREAK); }
+"continue"	{ advance(); return (CONTINUE); }
+"return"		{ advance(); return (RETURN); }
+"goto"			{ advance(); return (GOTO); }
 
-"while"	{ advance(); copy_yy_current; return (WHILE); }
-"do"		{ advance(); copy_yy_current; return (DO); }
-"for"		{ advance(); copy_yy_current; return (FOR); }
+"while"	{ advance(); return (WHILE); }
+"do"		{ advance(); return (DO); }
+"for"		{ advance(); return (FOR); }
 
-"if"			{ advance(); copy_yy_current; return (IF); }
-"else"		{ advance(); copy_yy_current; return (ELSE); }
-"switch"	{ advance(); copy_yy_current; return (SWITCH); }
-"case"		{ advance(); copy_yy_current; return (CASE); }
-"default"	{ advance(); copy_yy_current; return (DEFAULT); }
+"if"			{ advance(); return (IF); }
+"else"		{ advance(); return (ELSE); }
+"switch"	{ advance(); return (SWITCH); }
+"case"		{ advance(); return (CASE); }
+"default"	{ advance(); return (DEFAULT); }
 
 [_a-zA-Z][\`_a-zA-Z0-9]* {
 	

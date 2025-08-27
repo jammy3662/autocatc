@@ -18,9 +18,6 @@ int yywrap ();
 %glr-parser
 %debug
 
-/* tokens not part of the language */
-%token UNUSED
-
 %token '(' ')' '[' ']' '{' '}'
 %token '!' '#' '$' '%' '&' '*' '+' ','
 %token '-' '.' '/' ':' ';' '<' '>' '='
@@ -64,374 +61,297 @@ int yywrap ();
 %token IF	ELSE SWITCH
 %token CASE DEFAULT
 
-%token END_FILE
-
 /* Token Precedence */
 
-/* prefix */
-%right PREFIX GROUP LIST INCREMENT_PRE DECREMENT_PRE POSITIVE NEGATIVE '!' COMPLEMENT DEREFERENCE ADDRESS META
+%nonassoc VALUE
 
-/* postfix */
-%left POSTFIX	INCREMENT_POST DECREMENT_POST
+%nonassoc '0'
+
+%left ';'
 
 /* infix */
-%left '*' '/' '%'
-%left '+' '-'
-%left SHIFT_L SHIFT_R
-%nonassoc '<' AT_MOST '>' AT_LEAST
-%nonassoc COMPARE INEQUAL
-%left '&'
-%left '^'
-%left '|'
-%left AND
+%left '='
 %left OR
-%right '='
-%left ','
+%right AND
+%left '|'
+%left '^'
+%left '&'
+%nonassoc COMPARE INEQUAL
+%nonassoc '<' AT_MOST '>' AT_LEAST
+%left SHIFT_L SHIFT_R
+%left '+' '-'
+%left '*' '/' '%'
 
-%start unit
+/* postfix */
+%left ')' ']' INCREMENT_POST DECREMENT_POST
+
+/* prefix */
+%right '(' '[' INCREMENT_PRE DECREMENT_PRE POSITIVE NEGATIVE '!' '~' DEREFERENCE ADDRESS
+
+%right '{' ':'
+
+%nonassoc '3'
+%nonassoc '2'
+%nonassoc '1'
+
+%start block
 
 %%
 
 /* Grammar Rules */
 
-optional_semicolon:
-	';'
-|	%empty
+block:
 
-optional_colon:
-	':'
-|	%empty
+	lines   %prec '1'
+|	%empty  %prec '2'
 
-unit:
-
-	statements
-|	%empty
-
-statements:
+lines:
 	
-	statements statement
+	lines line
+|	line
+
+line:
+
+	note statement
 |	statement
+
+note:
+	
+	note comment
+|	comment
+
+comment:
+
+	COMMENT_LINE
+|	COMMENT_BLOCK
+
+label:
+
+	label '.'	NAME
+|	NAME
 
 statement:
 
-	declaration
-|	include
-|	braced_scope
-| expression
-|	control
-|	jump
-| case
-| marker
-| ';'
+	NAME ':'
+|	CASE expression ':'
+|	DEFAULT ':'
+|	INCLUDE label end
+|	CONTINUE end
+|	BREAK end
+|	GOTO NAME end
+|	RETURN expression end
+|	IF expression scope
+|	SWITCH expression scope
+|	WHILE expression scope
+|	DO WHILE expression scope
+|	FOR line expression line scope
+|	declaration
+|	expression
+|	'{' block '}'
 
 scope:
-
+	
 	braced_scope
 |	implicit_scope
 
 braced_scope:
 
-	'{' statements '}'
+	'{' block '}'
 
 implicit_scope:
-
-	optional_colon statements ELLIPSES
-
-enum_scope:
 	
-	'{' instances '}'
-|	optional_colon instances ELLIPSES
+	following block ELLIPSES
 
-include:
-	
-	INCLUDE name optional_semicolon
+following:
+	':'     %prec ':'
+|	%empty  %prec '1'
+
+end:
+	';'
+|	%empty  %prec '1'
 
 declaration:
-
-	qualified_declaration
-| object_declaration
-|	function_declaration
-|	structure_declaration
-| enum_declaration
-
-qualified_declaration:
 	
-	qualifiers declaration
-
-structure_declaration:
-	
-	STRUCT label scope
-|	UNION label scope
-|	MODULE label scope
-|	enum_declaration
-
-enum_declaration:
-
-	ENUM label	enum_scope
-|	ENUM label ':' type enum_scope
-
-control:
-
-	switch
-|	if_else
-|	do_while
-|	for
-
-switch:
-
-	SWITCH expression scope
-
-if_else:
-
-	IF expression scope
-| IF expression scope ELSE scope
-| IF expression scope ELSE IF scope
-
-do_while:
-
-	WHILE expression scope
-|	DO scope WHILE expression
-
-for:
-
-	FOR statement expression statement scope
-
-jump:
-	loop
-|	goto
-| return
-
-loop:
-
-	CONTINUE optional_semicolon
-|	BREAK optional_semicolon
-
-goto:
-
-	GOTO NAME optional_semicolon
-
-return:
-
-	RETURN expression optional_semicolon
-|	RETURN optional_semicolon
-
-case:
-
-	CASE expression optional_colon
-	DEFAULT optional_colon
-
-named_marker:
-
-	label ':'
-
-marker:
-
-	named_marker
-|	case
+	qualifiers STRUCT label scope
+|	qualifiers MODULE label scope
+|	qualifiers UNION label scope
+|	qualifiers ENUM label '{' variables '}'
+|	qualifiers ENUM label following variables ELLIPSES
+|	qualifiers ENUM label following variables ';'
+|	variable end
+|	function
 
 qualifiers:
-
+	
 	qualifiers qualifier
-|	qualifier
+|	qualifier  %prec '1'
+| %empty     %prec '2'
 
 qualifier:
-
-	LOCAL
-|	STATIC
-|	EXTERN
-| INLINE
-
-math_qualifier:
-
-	SIGNED
-|	UNSIGNED
-|	COMPLEX
-|	IMAGINARY
-|	LONG
-|	DOUBLE
-
-builtin_type:
-
-	BIT
-|	CHAR
-|	BYTE
-|	short
-|	INT
-|	FLOAT
-
-short:
-
-	SHORT
-|	SHORT	INT
-
-type_qualifiers:
 	
-	type_qualifiers type_qualifier
-|	type_qualifier
+	CONST |	LOCAL | STATIC |
+	EXTERN | INLINE
 
-type_qualifier:
+variables:
 	
-	CONST
-|	math_qualifier
+	variables ',' variable
+|	variable
 
-type:
+variable:
 	
-	type_qualifiers underlying_type indirection
-|	underlying_type indirection
+	type instance
 
-underlying_type:
+variable_group:
 	
-	datatype
-|	TYPEOF name
-
-indirection:
-	
-	cat_ptrs
-|	c_ptrs
-| %empty
-
-cat_ptrs:
-	
-	cat_ptrs cat_ptr
-|	cat_ptr
-
-cat_ptr:
-	
-	'~' CONST
-|	'~'
-
-c_ptrs:
-	
-	c_ptrs c_ptr
-|	c_ptr
-
-c_ptr:
-	
-	'*' CONST
-|	'*'
-
-datatype:
-	
-	builtin_type
-|	NAME
-
-label:
-
-	name
-|	'_'
-
-name:
-
-	name '.' NAME
-|	NAME
+	type instances
 
 instances:
 
-	instances ',' instance
-|	instance
+	instances ',' instance  %prec '1'
+|	instance                %prec '2'
 
 instance:
-
-	label
-|	label '=' single_expression
-|	counted_instance
-|	counted_instance '=' single_expression
-
-counted_instance:
 	
-	label
-|	label '[' expression ']'
+	label lengths initializer
 
-object_declaration:
-	
-	variable_declaration optional_semicolon
-|	function_declaration
+lengths:
 
-variable_declarations:
-	
-	variable_declarations ',' variable_declaration
-|	variable_declaration
+	lengths length
+|	length  %prec '1'
+|	%empty  %prec '2' 
 
-variable_declaration:
+length:
 
-	type instances
+	'[' expression ']'
 
-function_declaration:
+initializer:
+
+	'=' expression
+|	%empty  %prec '0'
+
+function:
 	
 	type label tuple ';'
 |	type label tuple scope
 
 tuple:
 	
-	'(' variable_declarations ')'
-|	'(' ')'
+	'(' variables ')'
+
+type:
+	
+	type_qualifiers datatype pointers
+
+type_qualifiers:
+	
+	type_qualifiers type_qualifier
+|	type_qualifier  %prec '1'
+|	%empty          %prec '2'
+
+type_qualifier:
+	
+	qualifier
+|	SIGNED
+|	UNSIGNED
+|	COMPLEX
+|	IMAGINARY	
+
+datatype:
+	
+	basic_type
+|	tuple
+|	TYPEOF label
+
+basic_type:
+	
+	BIT |	CHAR | BYTE  | SHORT |
+	INT | LONG | FLOAT | DOUBLE
+
+pointers:
+	
+	pointers pointer
+|	pointer  %prec '1'
+| %empty   %prec '2'
+
+pointer:
+	
+	cat_pointer | c_pointer
+
+cat_pointer:
+
+	'~' CONST
+|	'~'
+
+c_pointer:
+	
+	'*' CONST
+|	'*'
+
+expressions:
+	
+	expressions ',' expression
+|	expression
 
 expression:
 	
-	expression ',' single_expression
-|	single_expression
+	operation
+|	value
 
-single_expression:
+value:
 	
-	object_value
-| const_value
-| operation
-| '(' expression ')'
-|	'[' expression ']'
+	object_value	%prec VALUE
+| const_value		%prec VALUE
+| meta_value		%prec VALUE
+| '(' expression ')'		%prec VALUE
+|	'[' expression ']'		%prec VALUE
 
 const_value:
-	
+
 	CONST_INT
 |	CONST_FLOAT
 |	CONST_CHAR 
 |	CONST_STRING
 
-object_value:
-
-	name
-
-operation:
+object_value: '1' {}
 	
+	label
+
+meta_value:
+
+	SIZEOF label
+|	COUNTOF label
+|	NAMEOF label
+
+operation:	
 	prefix_operation
 |	infix_operation
 |	postfix_operation
 
 prefix_operation:
-		
-	prefix_operator expression
-|	'~' expression
+	prefix_operator value
 
 prefix_operator:
 
-	'(' %prec GROUP
-| '[' %prec LIST	
-|	INCREMENT %prec INCREMENT_POST
-|	DECREMENT %prec DECREMENT_POST
+	'!'
+|	'~'
+|	INCREMENT %prec INCREMENT_PRE
+|	DECREMENT %prec DECREMENT_PRE
 |	'+' %prec POSITIVE
 |	'-' %prec NEGATIVE
-|	'!' %prec '!'
-| '~' %prec COMPLEMENT
 | '*' %prec DEREFERENCE
 | '&' %prec ADDRESS
-|	SIZEOF %prec META
-| COUNTOF %prec META
-| NAMEOF %prec META
 
 postfix_operation:
-	
-	expression postfix_operator
+	value postfix_operator
 
 postfix_operator:
 
-	INCREMENT %prec INCREMENT_PRE
-|	DECREMENT %prec DECREMENT_PRE
-| '(' %prec GROUP
-| '[' %prec LIST
+	INCREMENT %prec INCREMENT_POST
+|	DECREMENT %prec DECREMENT_POST
 
 infix_operation:
-
-	expression infix_operator expression
-	expression assign_operator expression
+	value infix_operator value
+|	value assign_operator value
 
 infix_operator:
 
@@ -464,5 +384,5 @@ void yyerror (const char* message)
 
 int yywrap ()
 {
-	return END_FILE;
+	return (-1);
 }

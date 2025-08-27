@@ -1,12 +1,12 @@
-#include <stdio.h>
-#include <string.h>
+include stdio
+include string
 
 #include "lex.yy.h"
 #include "cat.tab.h"
 #include "token.h"
 #include "ints.h"
 
-#define PROGRAM_NAME "autocatc"
+alias PROGRAM_NAME "autocatc"
 
 extern int yydebug;
 
