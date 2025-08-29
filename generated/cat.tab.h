@@ -108,15 +108,16 @@ extern int yydebug;
     SWITCH = 314,                  /* SWITCH  */
     CASE = 315,                    /* CASE  */
     DEFAULT = 316,                 /* DEFAULT  */
-    INCREMENT_PRE = 317,           /* INCREMENT_PRE  */
-    DECREMENT_PRE = 318,           /* DECREMENT_PRE  */
-    POSITIVE = 319,                /* POSITIVE  */
-    NEGATIVE = 320,                /* NEGATIVE  */
-    DEREFERENCE = 321,             /* DEREFERENCE  */
-    ADDRESS = 322,                 /* ADDRESS  */
-    META = 323,                    /* META  */
-    INCREMENT_POST = 324,          /* INCREMENT_POST  */
-    DECREMENT_POST = 325           /* DECREMENT_POST  */
+    EMPTY = 317,                   /* EMPTY  */
+    VALUE = 318,                   /* VALUE  */
+    INCREMENT_POST = 319,          /* INCREMENT_POST  */
+    DECREMENT_POST = 320,          /* DECREMENT_POST  */
+    INCREMENT_PRE = 321,           /* INCREMENT_PRE  */
+    DECREMENT_PRE = 322,           /* DECREMENT_PRE  */
+    POSITIVE = 323,                /* POSITIVE  */
+    NEGATIVE = 324,                /* NEGATIVE  */
+    DEREFERENCE = 325,             /* DEREFERENCE  */
+    ADDRESS = 326                  /* ADDRESS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif

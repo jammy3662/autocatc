@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "lex.yy.h"
+#include "scanner.h"
 #include "cat.tab.h"
 #include "token.h"
 #include "ints.h"
@@ -42,11 +42,14 @@ int main (int argc, char** argv)
 			inputs [i] = FILE;
 	}
 	
+	bool files_input = false;
+	
 	if (argc > 1)
 	{
 		for (int i = 1; i <	argc; ++i)
 		{
 			if (inputs [i] isnt FILE) continue;
+			else files_input = true;
 			
 			yyin = fopen (argv[i], "r");
 			
@@ -61,7 +64,7 @@ int main (int argc, char** argv)
 			test();
 		}
 	}
-	else
+	if (not files_input)
 	{
 		yyin = stdin;
 		current.location.source_file = "stdin";

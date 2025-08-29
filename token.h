@@ -1,10 +1,8 @@
 #ifndef TOKEN_H
 #define TOKEN_H
 
-#include <vector>
-#include <sstream>
-
 #include "ints.h"
+#include "cat.tab.h"
 
 struct Location
 {
@@ -53,28 +51,50 @@ struct Token
 	x2 = 128,
 	x3 = 256,
 
-	AMPx2 = AMP + x2, // &&
-	PIPEx2 = PIPE + x2, // ||
-	PLUSx2 = PLUS + x2, // ++
-	MINUSx2 = MINUS + x2, // --
-	LEFTx2 = LEFT + x2, // <<
-	RIGHTx2 = RIGHT + x2, // >>
-	EQUALx2 = EQUAL + x2, // ==
+	AND = AMP + x2, // &&
+	OR = PIPE + x2, // ||
+	INCREMENT = PLUS + x2, // ++
+	DECREMENT = MINUS + x2, // --
+	SHIFT_L = LEFT + x2, // <<
+	SHIFT_R = RIGHT + x2, // >>
+	COMPARE = EQUAL + x2, // ==
+	INEQUAL, // !=
+	AT_MOST, // <=
+	AT_LEAST, // >=
 
-	LEFTx3 = LEFT + x3, // <<<
-	RIGHTx3 = RIGHT + x3, // >>>
+	ROTATE_L = LEFT + x3, // <<<
+	ROTATE_R = RIGHT + x3, // >>>
 
 	TAIL, // ..
 	ELLIPSES, // ...
 
-	ARROW, // -> (legacy / c)
+	INCLUDE,
+
+	LOCAL,
+	STATIC,
+	INLINE,
+	EXTERN,
+	CONST,
+
+	SIZEOF, COUNTOF, NAMEOF, TYPEOF,
+
+	SIGNED, UNSIGNED, COMPLEX, IMAGINARY,
+
+	BIT, CHAR, BYTE, SHORT, INT, FLOAT,
+	LONG, DOUBLE,
+
+	BREAK, CONTINUE, RETURN, GOTO,
+
+	IF, ELSE, SWITCH, CASE, DEFAULT,
+
+	DO, WHILE, FOR,
 
 	NAME,
 
-	INT_CONST,
-	FLOAT_CONST,
-	CHAR_CONST,
-	STR_CONST,
+	CONST_INT,
+	CONST_FLOAT,
+	CONST_CHAR,
+	CONST_STR,
 
 	COM_LINE,
 	COM_BLOCK,

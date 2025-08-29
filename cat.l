@@ -1,9 +1,8 @@
-%option header-file="lex.yy.h"
+%option header-file="scanner.h"
 
 %{
 
 #include "token.h"
-#include "cat.tab.h"
 
 struct current current;
 
@@ -149,7 +148,7 @@ void advance()
 	remove_characters (text, '_','`');
 	
 	current.token.text = text;
-	current.token.integer = std::stoll (text);
+	current.token.integer = std::strtoll (text, 0, 10);
 	return (CONST_INT);
 }
 
@@ -161,7 +160,7 @@ void advance()
 	remove_characters (text, '_','`');
 	
 	current.token.text = text;
-	current.token.integer = std::stoll (text);
+	current.token.integer = std::strtoll (text, 0, 8);
 	return (CONST_INT);
 }
 
@@ -173,7 +172,7 @@ void advance()
 	remove_characters (text, '_','`');
 	
 	current.token.text = text;
-	current.token.integer = std::stoll (text);
+	current.token.integer = std::strtoll (text, 0, 16);
 	return (CONST_INT);
 }
 
@@ -185,7 +184,7 @@ void advance()
 	remove_characters (text, 'b','B','_','`');
 	
 	current.token.text = text;
-	current.token.integer = std::stoll (text, 0, 2);
+	current.token.integer = std::strtoll (text, 0, 2);
 	return (CONST_INT);
 }
 
@@ -198,7 +197,7 @@ void advance()
 	remove_characters (text, '_','`');
 	
 	current.token.text = text;
-	current.token.decimal = std::stold (text);
+	current.token.decimal = std::strtold (text, 0);
 	return (CONST_FLOAT);
 }
 
@@ -276,3 +275,8 @@ L?\"(\\.|[^\\"])*\" {
 . { current.location.column++; }
 
 %%
+
+int yywrap ()
+{
+	return (-1);
+}

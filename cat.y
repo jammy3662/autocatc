@@ -4,7 +4,7 @@
 
 #define YYDEBUG 1
 
-#include "lex.yy.h"
+#include "scanner.h"
 
 void yyerror (const char*);
 
@@ -63,11 +63,12 @@ int yywrap ();
 
 /* Token Precedence */
 
+%nonassoc EMPTY
+%nonassoc NAME
+
 %nonassoc VALUE
 
-%nonassoc '0'
-
-%left ';'
+%nonassoc ';' ','
 
 /* infix */
 %left '='
@@ -90,10 +91,6 @@ int yywrap ();
 
 %right '{' ':'
 
-%nonassoc '3'
-%nonassoc '2'
-%nonassoc '1'
-
 %start block
 
 %%
@@ -102,8 +99,8 @@ int yywrap ();
 
 block:
 
-	lines   %prec '1'
-|	%empty  %prec '2'
+	lines
+|	%empty  %prec EMPTY
 
 lines:
 	
@@ -132,7 +129,8 @@ label:
 
 statement:
 
-	NAME ':'
+	error statement
+|	NAME ':'
 |	CASE expression ':'
 |	DEFAULT ':'
 |	INCLUDE label end
@@ -146,7 +144,7 @@ statement:
 |	DO WHILE expression scope
 |	FOR line expression line scope
 |	declaration
-|	expression
+|	expressions
 |	'{' block '}'
 
 scope:
@@ -163,12 +161,12 @@ implicit_scope:
 	following block ELLIPSES
 
 following:
-	':'     %prec ':'
-|	%empty  %prec '1'
+	':'
+|	%empty  %prec EMPTY
 
 end:
 	';'
-|	%empty  %prec '1'
+|	%empty  %prec EMPTY
 
 declaration:
 	
@@ -178,21 +176,21 @@ declaration:
 |	qualifiers ENUM label '{' variables '}'
 |	qualifiers ENUM label following variables ELLIPSES
 |	qualifiers ENUM label following variables ';'
-|	variable end
+|	qualifiers variables end
 |	function
 
 qualifiers:
 	
 	qualifiers qualifier
-|	qualifier  %prec '1'
-| %empty     %prec '2'
+|	qualifier  %prec NAME
+| %empty  %prec EMPTY
 
 qualifier:
 	
-	CONST |	LOCAL | STATIC |
+	LOCAL | STATIC |
 	EXTERN | INLINE
 
-variables:
+parameters:
 	
 	variables ',' variable
 |	variable
@@ -201,14 +199,14 @@ variable:
 	
 	type instance
 
-variable_group:
+variables:
 	
-	type instances
+	type instances %prec NAME
 
 instances:
 
-	instances ',' instance  %prec '1'
-|	instance                %prec '2'
+	instances ',' instance
+|	instance  %prec EMPTY
 
 instance:
 	
@@ -217,8 +215,8 @@ instance:
 lengths:
 
 	lengths length
-|	length  %prec '1'
-|	%empty  %prec '2' 
+|	length
+|	%empty  %prec EMPTY 
 
 length:
 
@@ -227,7 +225,7 @@ length:
 initializer:
 
 	'=' expression
-|	%empty  %prec '0'
+|	%empty  %prec EMPTY
 
 function:
 	
@@ -236,7 +234,7 @@ function:
 
 tuple:
 	
-	'(' variables ')'
+	'(' parameters ')'
 
 type:
 	
@@ -245,16 +243,16 @@ type:
 type_qualifiers:
 	
 	type_qualifiers type_qualifier
-|	type_qualifier  %prec '1'
-|	%empty          %prec '2'
+|	type_qualifier
+|	%empty  %prec EMPTY
 
 type_qualifier:
 	
-	qualifier
+	CONST
 |	SIGNED
 |	UNSIGNED
 |	COMPLEX
-|	IMAGINARY	
+|	IMAGINARY
 
 datatype:
 	
@@ -270,8 +268,8 @@ basic_type:
 pointers:
 	
 	pointers pointer
-|	pointer  %prec '1'
-| %empty   %prec '2'
+|	pointer
+| %empty  %prec EMPTY
 
 pointer:
 	
@@ -295,15 +293,15 @@ expressions:
 expression:
 	
 	operation
-|	value
+|	value  %prec VALUE
 
 value:
 	
-	object_value	%prec VALUE
-| const_value		%prec VALUE
-| meta_value		%prec VALUE
-| '(' expression ')'		%prec VALUE
-|	'[' expression ']'		%prec VALUE
+	object_value
+| const_value
+| meta_value
+| '(' expression ')'
+|	'[' expression ']'
 
 const_value:
 
@@ -312,7 +310,7 @@ const_value:
 |	CONST_CHAR 
 |	CONST_STRING
 
-object_value: '1' {}
+object_value: EMPTY {}
 	
 	label
 
@@ -334,20 +332,20 @@ prefix_operator:
 
 	'!'
 |	'~'
-|	INCREMENT %prec INCREMENT_PRE
-|	DECREMENT %prec DECREMENT_PRE
-|	'+' %prec POSITIVE
-|	'-' %prec NEGATIVE
-| '*' %prec DEREFERENCE
-| '&' %prec ADDRESS
+|	INCREMENT  %prec INCREMENT_PRE
+|	DECREMENT  %prec DECREMENT_PRE
+|	'+'  %prec POSITIVE
+|	'-'  %prec NEGATIVE
+| '*'  %prec DEREFERENCE
+| '&'  %prec ADDRESS
 
 postfix_operation:
 	value postfix_operator
 
 postfix_operator:
 
-	INCREMENT %prec INCREMENT_POST
-|	DECREMENT %prec DECREMENT_POST
+	INCREMENT  %prec INCREMENT_POST
+|	DECREMENT  %prec DECREMENT_POST
 
 infix_operation:
 	value infix_operator value
@@ -380,9 +378,4 @@ assign_operator:
 void yyerror (const char* message)
 {
 	fprintf (stderr, "Parse error: %s\n", message);
-}
-
-int yywrap ()
-{
-	return (-1);
 }
