@@ -30,25 +30,33 @@
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
-#ifndef YY_YY_CAT_TAB_H_INCLUDED
-# define YY_YY_CAT_TAB_H_INCLUDED
+#ifndef YY_CAT_CAT_TAB_H_INCLUDED
+# define YY_CAT_CAT_TAB_H_INCLUDED
 /* Debug traces.  */
-#ifndef YYDEBUG
-# define YYDEBUG 1
-#endif
+#ifndef CATDEBUG
+# if defined YYDEBUG
 #if YYDEBUG
-extern int yydebug;
+#   define CATDEBUG 1
+#  else
+#   define CATDEBUG 0
+#  endif
+# else /* ! defined YYDEBUG */
+#  define CATDEBUG 1
+# endif /* ! defined YYDEBUG */
+#endif  /* ! defined CATDEBUG */
+#if CATDEBUG
+extern int catdebug;
 #endif
 
 /* Token kinds.  */
-#ifndef YYTOKENTYPE
-# define YYTOKENTYPE
-  enum yytokentype
+#ifndef CATTOKENTYPE
+# define CATTOKENTYPE
+  enum cattokentype
   {
-    YYEMPTY = -2,
-    YYEOF = 0,                     /* "end of file"  */
-    YYerror = 256,                 /* error  */
-    YYUNDEF = 257,                 /* "invalid token"  */
+    CATEMPTY = -2,
+    CATEOF = 0,                    /* "end of file"  */
+    CATerror = 256,                /* error  */
+    CATUNDEF = 257,                /* "invalid token"  */
     AND = 258,                     /* AND  */
     OR = 259,                      /* OR  */
     INCREMENT = 260,               /* INCREMENT  */
@@ -110,28 +118,22 @@ extern int yydebug;
     DEFAULT = 316,                 /* DEFAULT  */
     EMPTY = 317,                   /* EMPTY  */
     VALUE = 318,                   /* VALUE  */
-    INCREMENT_POST = 319,          /* INCREMENT_POST  */
-    DECREMENT_POST = 320,          /* DECREMENT_POST  */
-    INCREMENT_PRE = 321,           /* INCREMENT_PRE  */
-    DECREMENT_PRE = 322,           /* DECREMENT_PRE  */
-    POSITIVE = 323,                /* POSITIVE  */
-    NEGATIVE = 324,                /* NEGATIVE  */
-    DEREFERENCE = 325,             /* DEREFERENCE  */
-    ADDRESS = 326                  /* ADDRESS  */
+    PREFIX = 319,                  /* PREFIX  */
+    POSTFIX = 320                  /* POSTFIX  */
   };
-  typedef enum yytokentype yytoken_kind_t;
+  typedef enum cattokentype cattoken_kind_t;
 #endif
 
 /* Value type.  */
-#if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-typedef int YYSTYPE;
-# define YYSTYPE_IS_TRIVIAL 1
-# define YYSTYPE_IS_DECLARED 1
+#if ! defined CATSTYPE && ! defined CATSTYPE_IS_DECLARED
+typedef int CATSTYPE;
+# define CATSTYPE_IS_TRIVIAL 1
+# define CATSTYPE_IS_DECLARED 1
 #endif
 
 
-extern YYSTYPE yylval;
+extern CATSTYPE catlval;
 
-int yyparse (void);
+int catparse (void);
 
-#endif /* !YY_YY_CAT_TAB_H_INCLUDED  */
+#endif /* !YY_CAT_CAT_TAB_H_INCLUDED  */

@@ -4,9 +4,9 @@
 
 #define YYDEBUG 1
 
-#include "scanner.h"
+#include "cat.h"
 
-void yyerror (const char*);
+void caterror (const char*);
 
 /* handle end of file */
 int yywrap ();
@@ -14,6 +14,8 @@ int yywrap ();
 %}
 
 /* Declarations (Bison) */
+
+%define api.prefix {cat}
 
 %glr-parser
 %debug
@@ -83,11 +85,11 @@ int yywrap ();
 %left '+' '-'
 %left '*' '/' '%'
 
-/* postfix */
-%left ')' ']' INCREMENT_POST DECREMENT_POST
-
 /* prefix */
-%right '(' '[' INCREMENT_PRE DECREMENT_PRE POSITIVE NEGATIVE '!' '~' DEREFERENCE ADDRESS
+%right '(' '[' '!' '~' PREFIX
+
+/* postfix */
+%left ')' ']' POSTFIX
 
 %right '{' ':'
 
@@ -99,209 +101,219 @@ int yywrap ();
 
 block:
 
-	lines
-|	%empty  %prec EMPTY
+	%empty
+|	statements
 
-lines:
+statements:
 	
-	lines line
-|	line
-
-line:
-
-	note statement
-|	statement
-
-note:
-	
-	note comment
-|	comment
-
-comment:
-
-	COMMENT_LINE
-|	COMMENT_BLOCK
-
-label:
-
-	label '.'	NAME
-|	NAME
+	statement
+|	statements statement
 
 statement:
 
 	error statement
+|	line
 |	NAME ':'
-|	CASE expression ':'
-|	DEFAULT ':'
-|	INCLUDE label end
-|	CONTINUE end
-|	BREAK end
-|	GOTO NAME end
-|	RETURN expression end
-|	IF expression scope
+|	CASE expression colon
+|	DEFAULT colon
+|	INCLUDE label semicolon
+|	CONTINUE semicolon
+|	BREAK semicolon
+|	GOTO NAME semicolon
+|	RETURN expression semicolon
+|	RETURN semicolon
+|	IF expression scope else-block
 |	SWITCH expression scope
 |	WHILE expression scope
 |	DO WHILE expression scope
-|	FOR line expression line scope
-|	declaration
-|	expressions
-|	'{' block '}'
+|	FOR iterator scope
+| declare-namespace
+
+semicolon:
+	%empty %prec EMPTY
+|	';'
+
+colon:
+	%empty %prec EMPTY
+|	':'
+
+label:
+	NAME members
+
+members:
+	%empty
+|	members '.' NAME
+
+else-block:
+	%empty
+|	ELSE scope
+
+iterator:
+	'(' iterator ')'
+|	line expression ';' line
+
+line:
+	braced-scope
+|	declare-variables
+|	declare-function
+|	expressions semicolon
+|	';'
 
 scope:
-	
-	braced_scope
-|	implicit_scope
+	braced-scope
+|	colon block ELLIPSES
+|	';'
 
-braced_scope:
-
+braced-scope:
 	'{' block '}'
 
-implicit_scope:
-	
-	following block ELLIPSES
+enum-scope:
+	'{' optional_instances '}'
+|	colon optional_instances ELLIPSES
+| ';'
 
-following:
-	':'
-|	%empty  %prec EMPTY
+optional_instances:
+	%empty
+|	instances
 
-end:
-	';'
-|	%empty  %prec EMPTY
+declare-namespace:
+	qualifiers struct-module-union label scope
+|	qualifiers ENUM enum-scope
 
-declaration:
-	
-	qualifiers STRUCT label scope
-|	qualifiers MODULE label scope
-|	qualifiers UNION label scope
-|	qualifiers ENUM label '{' variables '}'
-|	qualifiers ENUM label following variables ELLIPSES
-|	qualifiers ENUM label following variables ';'
-|	qualifiers variables end
-|	function
+struct-module-union:
+	STRUCT
+|	MODULE
+|	UNION
+
+declare-variables:
+	qualifiers variables semicolon
+
+declare-function:
+	qualifiers function
 
 qualifiers:
-	
-	qualifiers qualifier
-|	qualifier  %prec NAME
-| %empty  %prec EMPTY
+	%empty %prec EMPTY
+|	qualifiers qualifier
 
 qualifier:
-	
-	LOCAL | STATIC |
-	EXTERN | INLINE
-
-parameters:
-	
-	variables ',' variable
-|	variable
+	LOCAL
+|	STATIC
+|	EXTERN
+|	INLINE
 
 variable:
-	
 	type instance
 
 variables:
-	
-	type instances %prec NAME
+	type instances
 
 instances:
-
-	instances ',' instance
-|	instance  %prec EMPTY
+	instance
+|	instances ',' instance
 
 instance:
-	
 	label lengths initializer
 
 lengths:
-
-	lengths length
-|	length
-|	%empty  %prec EMPTY 
+	%empty
+|	lengths length
 
 length:
-
 	'[' expression ']'
 
 initializer:
-
-	'=' expression
-|	%empty  %prec EMPTY
+	%empty
+|	'=' expression
 
 function:
-	
-	type label tuple ';'
-|	type label tuple scope
+	type label tuple scope
 
 tuple:
-	
-	'(' parameters ')'
+	'(' parameters-or-none ')'
+
+parameters-or-none:
+	%empty
+|	parameters
+
+parameters:
+
+	variable
+|	parameters ',' variable
 
 type:
-	
-	type_qualifiers datatype pointers
+	type-qualifiers datatype indirection
 
-type_qualifiers:
-	
-	type_qualifiers type_qualifier
-|	type_qualifier
-|	%empty  %prec EMPTY
+type-qualifiers:
+	%empty
+|	type-qualifiers type-qualifier
 
-type_qualifier:
-	
+type-qualifier:
+
 	CONST
 |	SIGNED
-|	UNSIGNED
+| UNSIGNED
 |	COMPLEX
 |	IMAGINARY
 
-datatype:
-	
-	basic_type
-|	tuple
-|	TYPEOF label
-
-basic_type:
-	
-	BIT |	CHAR | BYTE  | SHORT |
-	INT | LONG | FLOAT | DOUBLE
-
-pointers:
-	
-	pointers pointer
-|	pointer
-| %empty  %prec EMPTY
+indirection:
+	%empty
+|	indirection pointer
 
 pointer:
-	
-	cat_pointer | c_pointer
+	'~' const
+|	'*' const
 
-cat_pointer:
+const:
+	%empty
+|	CONST
 
-	'~' CONST
-|	'~'
+datatype:
 
-c_pointer:
-	
-	'*' CONST
-|	'*'
+	basic-type
+|	tuple
+|	TYPEOF label
+|	label
+
+basic-type:
+	BIT
+|	CHAR
+|	BYTE
+|	SHORT int
+|	longs int
+|	INT
+|	FLOAT
+| long DOUBLE
+
+longs:
+	LONG
+|	longs LONG
+
+long:
+	%empty
+|	LONG
+
+int:
+	%empty
+|	INT
 
 expressions:
-	
-	expressions ',' expression
-|	expression
+	expression
+|	expressions ',' expression
 
 expression:
-	
-	operation
-|	value  %prec VALUE
+
+	'(' expressions ')'
+|	'[' expressions ']'
+|	value
+|	prefix_operator expression %prec PREFIX
+|	expression infix_operator expression
+|	expression postfix_operator %prec POSTFIX
 
 value:
 	
-	object_value
+	label
 | const_value
 | meta_value
-| '(' expression ')'
-|	'[' expression ']'
 
 const_value:
 
@@ -310,72 +322,51 @@ const_value:
 |	CONST_CHAR 
 |	CONST_STRING
 
-object_value: EMPTY {}
-	
-	label
-
 meta_value:
 
 	SIZEOF label
 |	COUNTOF label
 |	NAMEOF label
 
-operation:	
-	prefix_operation
-|	infix_operation
-|	postfix_operation
-
-prefix_operation:
-	prefix_operator value
 
 prefix_operator:
 
 	'!'
 |	'~'
-|	INCREMENT  %prec INCREMENT_PRE
-|	DECREMENT  %prec DECREMENT_PRE
-|	'+'  %prec POSITIVE
-|	'-'  %prec NEGATIVE
-| '*'  %prec DEREFERENCE
-| '&'  %prec ADDRESS
-
-postfix_operation:
-	value postfix_operator
+|	INCREMENT
+|	DECREMENT
+|	'+'
+|	'-'
+| '*'
+| '&'
 
 postfix_operator:
 
-	INCREMENT  %prec INCREMENT_POST
-|	DECREMENT  %prec DECREMENT_POST
-
-infix_operation:
-	value infix_operator value
-|	value assign_operator value
+	INCREMENT
+|	DECREMENT
 
 infix_operator:
 
-	infix_assignable_operator	
-|	AND	|	OR
+	AND	|	OR | COMPARE | INEQUAL
 |	'<' | AT_MOST | '>' | AT_LEAST
-|	COMPARE | INEQUAL
+|	arithmetic
+| arithmetic-or-none '='
 
-infix_assignable_operator:
+arithmetic-or-none:
+	%empty
+|	arithmetic
 
-	'*' | '/' | '%'
-|	'+' | '-'
-|	SHIFT_L | SHIFT_R
-|	ROTATE_L | ROTATE_R
-|	'&' | '^' | '|'
-
-assign_operator:
-	
-	'='
-|	infix_assignable_operator '='
+arithmetic:
+	'*' | '/' | '%' | '&'
+|	'+' | '-' | '^' | '|'
+| SHIFT_L | SHIFT_R
+| ROTATE_L | ROTATE_R
 
 %%
 
 /* Epilogue */
 
-void yyerror (const char* message)
+void caterror (const char* message)
 {
 	fprintf (stderr, "Parse error: %s\n", message);
 }

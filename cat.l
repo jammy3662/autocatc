@@ -1,4 +1,5 @@
-%option header-file="scanner.h"
+%option prefix="cat"
+%option header-file="cat.h"
 
 %{
 
@@ -99,6 +100,11 @@ void advance()
 "local"		{ advance(); return (LOCAL); }
 "static"	{ advance(); return (STATIC); }
 "const"		{ advance(); return (CONST); }
+
+"struct"	{ advance(); return (STRUCT); }
+"module"	{ advance(); return (MODULE); }
+"union"	{ advance(); return (UNION); }
+"enum"	{ advance(); return (ENUM); }
 
 "signed"		{ advance(); return (SIGNED); }
 "unsigned"	{ advance(); return (UNSIGNED); }

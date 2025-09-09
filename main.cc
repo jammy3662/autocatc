@@ -1,23 +1,23 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "scanner.h"
+#include "cat.h"
 #include "cat.tab.h"
 #include "token.h"
 #include "ints.h"
 
 #define PROGRAM_NAME "autocatc"
 
-extern int yydebug;
+extern int catdebug;
 
 int test_scanner();
 int (*test)() = test_scanner;
 
 int main (int argc, char** argv)
 {
-	yydebug = 1;
+	catdebug = 1;
 	
-	yyin = stdin;
+	catin = stdin;
 	
 	enum Arg {FILE, FLAG};
 	Arg inputs [argc];
@@ -36,7 +36,7 @@ int main (int argc, char** argv)
 			inputs [i] = FLAG;
 		else
 		if (zero strcmp (argv[i], "parse"))
-			test = yyparse,
+			test = catparse,
 			inputs [i] = FLAG;
 		else
 			inputs [i] = FILE;
@@ -51,9 +51,9 @@ int main (int argc, char** argv)
 			if (inputs [i] isnt FILE) continue;
 			else files_input = true;
 			
-			yyin = fopen (argv[i], "r");
+			catin = fopen (argv[i], "r");
 			
-			if (!yyin)
+			if (!catin)
 			{
 				fprintf (stderr, "File couldn't open (%s)\n", argv[i]);
 				return 1;
@@ -66,7 +66,7 @@ int main (int argc, char** argv)
 	}
 	if (not files_input)
 	{
-		yyin = stdin;
+		catin = stdin;
 		current.location.source_file = "stdin";
 		printf (PROGRAM_NAME " - Reading from standard input\n");
 		return test();
@@ -81,7 +81,7 @@ int test_scanner()
 	
 	do
 	{
-		result = yylex();
+		result = catlex();
 		auto text = current.token.text;
 		
 		if (result is 0) continue;
@@ -92,7 +92,7 @@ int test_scanner()
 	}
 	while (nonzero result);
 	
-	if (yyin isnt stdin) fclose (yyin);
+	if (catin isnt stdin) fclose (catin);
 	
 	return result;
 }
