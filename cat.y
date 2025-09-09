@@ -313,10 +313,11 @@ expression:
 |	prefix_operator expression %prec PREFIX
 |	expression infix_operator expression %prec INFIX
 |	expression postfix_operator %prec POSTFIX
+| label expression %prec '('
 
 value:
 	
-	label
+	label %prec NAME
 | const_value
 | meta_value
 
