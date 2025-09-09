@@ -118,8 +118,9 @@ extern int catdebug;
     DEFAULT = 316,                 /* DEFAULT  */
     EMPTY = 317,                   /* EMPTY  */
     VALUE = 318,                   /* VALUE  */
-    PREFIX = 319,                  /* PREFIX  */
-    POSTFIX = 320                  /* POSTFIX  */
+    INFIX = 319,                   /* INFIX  */
+    PREFIX = 320,                  /* PREFIX  */
+    POSTFIX = 321                  /* POSTFIX  */
   };
   typedef enum cattokentype cattoken_kind_t;
 #endif

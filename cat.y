@@ -72,8 +72,11 @@ int yywrap ();
 
 %nonassoc ';' ','
 
-/* infix */
-%left '='
+%nonassoc CONST_INT CONST_FLOAT CONST_STRING CONST_CHAR
+%nonassoc SIZEOF COUNTOF NAMEOF
+
+%right '='
+
 %left OR
 %right AND
 %left '|'
@@ -81,15 +84,17 @@ int yywrap ();
 %left '&'
 %nonassoc COMPARE INEQUAL
 %nonassoc '<' AT_MOST '>' AT_LEAST
-%left SHIFT_L SHIFT_R
+%left SHIFT_L SHIFT_R ROTATE_L ROTATE_R
 %left '+' '-'
 %left '*' '/' '%'
+
+%left INFIX
 
 /* prefix */
 %right '(' '[' '!' '~' PREFIX
 
 /* postfix */
-%left ')' ']' POSTFIX
+%left ')' ']' POSTFIX INCREMENT DECREMENT
 
 %right '{' ':'
 
@@ -215,14 +220,14 @@ instance:
 	label lengths initializer
 
 lengths:
-	%empty
+	%empty %prec EMPTY
 |	lengths length
 
 length:
 	'[' expression ']'
 
 initializer:
-	%empty
+	%empty %prec EMPTY
 |	'=' expression
 
 function:
@@ -232,7 +237,7 @@ tuple:
 	'(' parameters-or-none ')'
 
 parameters-or-none:
-	%empty
+	%empty %prec EMPTY
 |	parameters
 
 parameters:
@@ -297,7 +302,7 @@ int:
 |	INT
 
 expressions:
-	expression
+	expression %prec ','
 |	expressions ',' expression
 
 expression:
@@ -306,7 +311,7 @@ expression:
 |	'[' expressions ']'
 |	value
 |	prefix_operator expression %prec PREFIX
-|	expression infix_operator expression
+|	expression infix_operator expression %prec INFIX
 |	expression postfix_operator %prec POSTFIX
 
 value:
@@ -342,19 +347,16 @@ prefix_operator:
 
 postfix_operator:
 
-	INCREMENT
-|	DECREMENT
+	INCREMENT %prec POSTFIX
+|	DECREMENT %prec POSTFIX
 
 infix_operator:
 
 	AND	|	OR | COMPARE | INEQUAL
 |	'<' | AT_MOST | '>' | AT_LEAST
 |	arithmetic
-| arithmetic-or-none '='
-
-arithmetic-or-none:
-	%empty
-|	arithmetic
+| arithmetic '='
+| '='
 
 arithmetic:
 	'*' | '/' | '%' | '&'
