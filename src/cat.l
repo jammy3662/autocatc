@@ -3,7 +3,8 @@
 
 %{
 
-#include "token.h"
+#include "token.hh"
+#include "cat.tab.h"
 
 struct current current;
 
@@ -87,6 +88,8 @@ void advance()
 
 ".."  { advance(); return (TAIL); }
 "..." { advance(); return (ELLIPSES); }
+
+"alias" { advance(); return (ALIAS); }
 
 "include"	{ advance(); return (INCLUDE); }
 "inline"	{ advance(); return (INLINE); }

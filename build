@@ -5,6 +5,21 @@ CLANG_FLAGS="\
 
 mkdir -p generated
 cd generated
-bison ../cat.y -dtx --report=states,lookaheads,solved && \
-flex --nounput ../cat.l && \
-clang++ -I . -I .. lex.cat.c cat.tab.c ../main.cc -o ../autocatc $CLANG_FLAGS
+
+SRC="../src"
+
+bison -dt \
+	$SRC/cat.y \
+	--report=states,lookaheads,solved \
+	&&
+
+flex --nounput $SRC/cat.l && \
+
+cd ..
+
+clang++ $CLANG_FLAGS \
+	-I src -I generated \
+	generated/lex.cat.c \
+	generated/cat.tab.c \
+	src/main.cc \
+	-o autocatc

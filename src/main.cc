@@ -3,8 +3,6 @@
 
 #include "cat.h"
 #include "cat.tab.h"
-#include "token.h"
-#include "ints.h"
 
 #define PROGRAM_NAME "autocatc"
 

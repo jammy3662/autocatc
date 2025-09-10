@@ -2,9 +2,9 @@
 
 /* Prologue */
 
-#define YYDEBUG 1
-
 #include "cat.h"
+
+#define YYDEBUG 1
 
 void caterror (const char*);
 
@@ -14,6 +14,16 @@ int yywrap ();
 %}
 
 /* Declarations (Bison) */
+
+%code requires {
+
+#include <vector>
+
+#include "log.hh"
+#include "token.hh"
+#include "symbol.hh"
+
+}
 
 %define api.prefix {cat}
 
@@ -53,6 +63,7 @@ int yywrap ();
 
 %token BIT CHAR BYTE SHORT INT FLOAT
 
+%token ALIAS
 %token INCLUDE INLINE
 %token SIZEOF COUNTOF NAMEOF TYPEOF
 %token LOCAL STATIC	CONST EXTERN
@@ -68,12 +79,9 @@ int yywrap ();
 %nonassoc EMPTY
 %nonassoc NAME
 
-%nonassoc VALUE
+%nonassoc TAIL
 
 %nonassoc ';' ','
-
-%nonassoc CONST_INT CONST_FLOAT CONST_STRING CONST_CHAR
-%nonassoc SIZEOF COUNTOF NAMEOF
 
 %right '='
 
@@ -90,15 +98,32 @@ int yywrap ();
 
 %left INFIX
 
-/* prefix */
+%nonassoc CONST_INT CONST_FLOAT CONST_STRING CONST_CHAR
+%nonassoc SIZEOF COUNTOF NAMEOF
+
 %right '(' '[' '!' '~' PREFIX
 
-/* postfix */
 %left ')' ']' POSTFIX INCREMENT DECREMENT
 
 %right '{' ':'
 
 %start block
+
+%union {
+
+enum Kind
+{
+	TEXT,
+	LABEL,
+	SYMBOL,
+}
+kind;
+
+CatLang::Symbol* symbol;
+char* text;
+Label label;
+
+}
 
 %%
 
@@ -118,8 +143,9 @@ statement:
 
 	error statement
 |	line
+| ALIAS NAME label semicolon
 |	NAME ':'
-|	CASE expression colon
+|	CASE case-expression colon
 |	DEFAULT colon
 |	INCLUDE label semicolon
 |	CONTINUE semicolon
@@ -149,6 +175,13 @@ members:
 	%empty
 |	members '.' NAME
 
+case-expression:
+	expression range
+
+range:
+	%empty %prec EMPTY
+|	TAIL expression
+
 else-block:
 	%empty
 |	ELSE scope
@@ -175,7 +208,7 @@ braced-scope:
 enum-scope:
 	'{' optional_instances '}'
 |	colon optional_instances ELLIPSES
-| ';'
+|	';'
 
 optional_instances:
 	%empty
@@ -256,7 +289,7 @@ type-qualifier:
 
 	CONST
 |	SIGNED
-| UNSIGNED
+|	UNSIGNED
 |	COMPLEX
 |	IMAGINARY
 
@@ -287,7 +320,7 @@ basic-type:
 |	longs int
 |	INT
 |	FLOAT
-| long DOUBLE
+|	long DOUBLE
 
 longs:
 	LONG
@@ -313,13 +346,13 @@ expression:
 |	prefix_operator expression %prec PREFIX
 |	expression infix_operator expression %prec INFIX
 |	expression postfix_operator %prec POSTFIX
-| label expression %prec '('
+|	label expression %prec '('
 
 value:
 	
 	label %prec NAME
-| const_value
-| meta_value
+|	const_value
+|	meta_value
 
 const_value:
 
@@ -343,8 +376,8 @@ prefix_operator:
 |	DECREMENT
 |	'+'
 |	'-'
-| '*'
-| '&'
+|	'*'
+|	'&'
 
 postfix_operator:
 
@@ -356,14 +389,14 @@ infix_operator:
 	AND	|	OR | COMPARE | INEQUAL
 |	'<' | AT_MOST | '>' | AT_LEAST
 |	arithmetic
-| arithmetic '='
-| '='
+|	arithmetic '='
+|	'='
 
 arithmetic:
 	'*' | '/' | '%' | '&'
 |	'+' | '-' | '^' | '|'
-| SHIFT_L | SHIFT_R
-| ROTATE_L | ROTATE_R
+|	SHIFT_L | SHIFT_R
+|	ROTATE_L | ROTATE_R
 
 %%
 

@@ -47,6 +47,18 @@
 #if CATDEBUG
 extern int catdebug;
 #endif
+/* "%code requires" blocks.  */
+#line 18 "../src/cat.y"
+
+
+#include <vector>
+
+#include "log.hh"
+#include "token.hh"
+#include "symbol.hh"
+
+
+#line 62 "cat.tab.h"
 
 /* Token kinds.  */
 #ifndef CATTOKENTYPE
@@ -84,40 +96,40 @@ extern int catdebug;
     SHORT = 282,                   /* SHORT  */
     INT = 283,                     /* INT  */
     FLOAT = 284,                   /* FLOAT  */
-    INCLUDE = 285,                 /* INCLUDE  */
-    INLINE = 286,                  /* INLINE  */
-    SIZEOF = 287,                  /* SIZEOF  */
-    COUNTOF = 288,                 /* COUNTOF  */
-    NAMEOF = 289,                  /* NAMEOF  */
-    TYPEOF = 290,                  /* TYPEOF  */
-    LOCAL = 291,                   /* LOCAL  */
-    STATIC = 292,                  /* STATIC  */
-    CONST = 293,                   /* CONST  */
-    EXTERN = 294,                  /* EXTERN  */
-    SIGNED = 295,                  /* SIGNED  */
-    UNSIGNED = 296,                /* UNSIGNED  */
-    COMPLEX = 297,                 /* COMPLEX  */
-    IMAGINARY = 298,               /* IMAGINARY  */
-    LONG = 299,                    /* LONG  */
-    DOUBLE = 300,                  /* DOUBLE  */
-    BREAK = 301,                   /* BREAK  */
-    CONTINUE = 302,                /* CONTINUE  */
-    RETURN = 303,                  /* RETURN  */
-    GOTO = 304,                    /* GOTO  */
-    STRUCT = 305,                  /* STRUCT  */
-    UNION = 306,                   /* UNION  */
-    MODULE = 307,                  /* MODULE  */
-    ENUM = 308,                    /* ENUM  */
-    WHILE = 309,                   /* WHILE  */
-    DO = 310,                      /* DO  */
-    FOR = 311,                     /* FOR  */
-    IF = 312,                      /* IF  */
-    ELSE = 313,                    /* ELSE  */
-    SWITCH = 314,                  /* SWITCH  */
-    CASE = 315,                    /* CASE  */
-    DEFAULT = 316,                 /* DEFAULT  */
-    EMPTY = 317,                   /* EMPTY  */
-    VALUE = 318,                   /* VALUE  */
+    ALIAS = 285,                   /* ALIAS  */
+    INCLUDE = 286,                 /* INCLUDE  */
+    INLINE = 287,                  /* INLINE  */
+    SIZEOF = 288,                  /* SIZEOF  */
+    COUNTOF = 289,                 /* COUNTOF  */
+    NAMEOF = 290,                  /* NAMEOF  */
+    TYPEOF = 291,                  /* TYPEOF  */
+    LOCAL = 292,                   /* LOCAL  */
+    STATIC = 293,                  /* STATIC  */
+    CONST = 294,                   /* CONST  */
+    EXTERN = 295,                  /* EXTERN  */
+    SIGNED = 296,                  /* SIGNED  */
+    UNSIGNED = 297,                /* UNSIGNED  */
+    COMPLEX = 298,                 /* COMPLEX  */
+    IMAGINARY = 299,               /* IMAGINARY  */
+    LONG = 300,                    /* LONG  */
+    DOUBLE = 301,                  /* DOUBLE  */
+    BREAK = 302,                   /* BREAK  */
+    CONTINUE = 303,                /* CONTINUE  */
+    RETURN = 304,                  /* RETURN  */
+    GOTO = 305,                    /* GOTO  */
+    STRUCT = 306,                  /* STRUCT  */
+    UNION = 307,                   /* UNION  */
+    MODULE = 308,                  /* MODULE  */
+    ENUM = 309,                    /* ENUM  */
+    WHILE = 310,                   /* WHILE  */
+    DO = 311,                      /* DO  */
+    FOR = 312,                     /* FOR  */
+    IF = 313,                      /* IF  */
+    ELSE = 314,                    /* ELSE  */
+    SWITCH = 315,                  /* SWITCH  */
+    CASE = 316,                    /* CASE  */
+    DEFAULT = 317,                 /* DEFAULT  */
+    EMPTY = 318,                   /* EMPTY  */
     INFIX = 319,                   /* INFIX  */
     PREFIX = 320,                  /* PREFIX  */
     POSTFIX = 321                  /* POSTFIX  */
@@ -127,7 +139,26 @@ extern int catdebug;
 
 /* Value type.  */
 #if ! defined CATSTYPE && ! defined CATSTYPE_IS_DECLARED
-typedef int CATSTYPE;
+union CATSTYPE
+{
+#line 112 "../src/cat.y"
+
+
+enum Kind
+{
+	TEXT,
+	SYMBOL,
+}
+kind;
+
+CatLang::Symbol* symbol;
+char* text;
+
+
+#line 159 "cat.tab.h"
+
+};
+typedef union CATSTYPE CATSTYPE;
 # define CATSTYPE_IS_TRIVIAL 1
 # define CATSTYPE_IS_DECLARED 1
 #endif
