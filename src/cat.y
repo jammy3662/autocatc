@@ -77,7 +77,8 @@ int yywrap ();
 /* Token Precedence */
 
 %nonassoc EMPTY
-%nonassoc NAME
+
+%nonassoc NAME WHILE
 
 %nonassoc TAIL
 
@@ -113,15 +114,15 @@ int yywrap ();
 
 enum Kind
 {
-	TEXT,
+	NAME,
 	LABEL,
 	SYMBOL,
 }
 kind;
 
+char* name;
+CatLang::Label* label;
 CatLang::Symbol* symbol;
-char* text;
-Label label;
 
 }
 
@@ -157,6 +158,7 @@ statement:
 |	SWITCH expression scope
 |	WHILE expression scope
 |	DO WHILE expression scope
+|	DO scope WHILE expression semicolon
 |	FOR iterator scope
 | declare-namespace
 

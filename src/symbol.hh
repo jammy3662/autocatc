@@ -136,7 +136,7 @@ struct Expression
 	};
 	
 	
-	Opcode opcode;
+	fast opcode;
 	bool constant_value = false;
 	
 	union
@@ -146,6 +146,25 @@ struct Expression
 		Expression* operands [2];
 	};
 };
+
+
+struct Alias: Tag
+{ Label path; Symbol* symbol; };
+
+struct Marker: Tag
+{ fast index; };
+
+struct Goto
+{ fast index; };
+
+struct Case
+{ fast index; struct Expression* expression; };
+
+struct Include
+{ Symbol* symbol; };
+
+struct Return
+{ struct Expression* value; };
 
 struct Symbol
 {
@@ -181,22 +200,22 @@ struct Symbol
 	unsigned byte
 	is_local: 1, // hidden from outer scopes
 	is_static: 1, // only one instance of symbol
-	is_extern:	1; // allocate in parent's container, not in parent
+	is_extern:	1, // allocate in parent's container, not in parent
+	is_inline: 1; // copy definition directly into its scope
 	
 	union
 	{
-		struct { Label name; Symbol* symbol; } Alias;
-		struct { fast index; } Marker;
-		struct { fast index; struct Expression* expression; } Case;
-		struct { Symbol* symbol; } Include;
-		struct { struct Expression* value; } Return;
 		Scope scope;
 		Variable variable;
 		Function function;
 		Expression expression;
+		Alias alias;
+		Marker marker;
+		Goto go_to;
+		Case case_marker;
+		Include include;
+		Return return_marker;
 	};
-	
-	Symbol () {}
 };
 
 Symbol* findin (char* name, Symbol* scope); // look for a symbol only within the scope, not its outer scopes

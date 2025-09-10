@@ -141,21 +141,23 @@ extern int catdebug;
 #if ! defined CATSTYPE && ! defined CATSTYPE_IS_DECLARED
 union CATSTYPE
 {
-#line 112 "../src/cat.y"
+#line 113 "../src/cat.y"
 
 
 enum Kind
 {
-	TEXT,
+	NAME,
+	LABEL,
 	SYMBOL,
 }
 kind;
 
+char* name;
+CatLang::Label* label;
 CatLang::Symbol* symbol;
-char* text;
 
 
-#line 159 "cat.tab.h"
+#line 161 "cat.tab.h"
 
 };
 typedef union CATSTYPE CATSTYPE;
