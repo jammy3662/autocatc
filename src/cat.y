@@ -253,6 +253,7 @@ instances:
 
 instance:
 	label lengths initializer
+|	label lengths TAIL
 
 lengths:
 	%empty %prec EMPTY
