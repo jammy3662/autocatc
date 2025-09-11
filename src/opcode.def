@@ -4,6 +4,7 @@
 	
 	LITERAL, // handwritten / constant value
 	VALUEOF, // object / variable access
+	META, // sizeof, nameof, countof
 	GROUP, // () parentheses group of expression(s)
 	LIST, // [] sequential expressions in an array
 	

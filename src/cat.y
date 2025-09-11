@@ -125,8 +125,10 @@ std::vector <Symbol*> scopes;
 	
 	CatLang::Expression* case_range [2];
 	
-	struct { CatLang::Symbol* init, *cont; CatLang::Expression* condition; }
+	struct { CatLang::Symbol* setup, *proceed; CatLang::Expression* condition; }
 	* iterator;
+	
+	std::vector <char*>* members;
 }
 
 %type <scope> block
@@ -140,10 +142,15 @@ std::vector <Symbol*> scopes;
 %type <label> label
 
 %type <expression> expression
+%type <expression> value
+%type <expression> meta-value
+%type <token> const-value
 
 %type <case_range> case-expression
 %type <expression> range
 %type <scope> else-block
+
+%type <members> members
 
 %type <iterator> iterator
 
@@ -346,8 +353,8 @@ statement:
 		$$->scope = *$3; free ($3);
 		$$->scope.kind = Scope::FOR;
 		$$->scope.condition = $2->condition;
-		$$->scope.continue_action = $2->cont;
-		$$->scope.insert ($2->init);
+		$$->scope.continue_action = $2->proceed;
+		$$->scope.insert ($2->setup);
 	}
 	
 | declare-namespace
@@ -362,11 +369,18 @@ colon:
 |	':'
 
 label:
+	
 	NAME members
+	{
+		$$ = new (Label);
+		$$->names = *$2; free ($2);
+		$$->names.insert ($$->names.begin(), $1->text);
+	}
 
 members:
-	%empty
-|	members '.' NAME
+	
+	%empty { $$ = new (std::vector<char*>); }
+|	members '.' NAME { $$ = $1; $$->push_back ($3->text); }
 
 case-expression:
 	
@@ -388,9 +402,9 @@ iterator:
 	'(' iterator ')' { $$ = $2; }
 |	line ';' expression ';' line
 	{
-		$$->init = $1;
+		$$->setup = $1;
 		$$->condition = $3;
-		$$->cont = $5;
+		$$->proceed = $5;
 	}
 
 line:
@@ -398,7 +412,7 @@ line:
 |	declare-variables
 |	declare-function
 |	expressions semicolon
-|	';'
+|	';' { $$ = 0; } // empty statement, dont create a symbol for this
 
 scope:
 
@@ -549,29 +563,73 @@ expression:
 |	'[' expressions ']'
 |	value
 |	prefix_operator expression %prec PREFIX
+	{}
+	
 |	expression infix_operator expression %prec INFIX
+	{}
+	
 |	expression postfix_operator %prec POSTFIX
+	{}
+	
 |	label expression %prec '('
+	{
+		$$ = new (Expression);
+		$$->opcode = Expression::CALL;
+		
+		$$->call.function.path = *$1; free ($1);
+		$$->call.arguments = $2;
+	}
 
 value:
 	
 	label %prec NAME
-|	const_value
-|	meta_value
+	{
+		$$ = new (Expression);
+		$$->opcode = Expression::VALUEOF;
+		$$->variable.path = *$1; free ($1);
+	}
+	
+|	const-value
+	{
+		$$ = new (Expression);
+		$$->opcode = Expression::LITERAL;
+		$$->constant = $1->text;
+	}
+		
+|	meta-value
 
-const_value:
+const-value:
 
 	CONST_INT
 |	CONST_FLOAT
 |	CONST_CHAR 
 |	CONST_STRING
 
-meta_value:
+meta-value:
 
-	SIZEOF label
-|	COUNTOF label
-|	NAMEOF label
-
+	SIZEOF expression
+	{
+		$$ = new (Expression);
+		$$->opcode = Expression::META;
+		$$->meta.kind = $$->meta.SIZEOF;
+		$$->meta.value = $2;
+	}
+	
+|	COUNTOF expression
+	{
+		$$ = new (Expression);
+		$$->opcode = Expression::META;
+		$$->meta.kind = $$->meta.COUNTOF;
+		$$->meta.value = $2;
+	}
+	
+|	NAMEOF expression
+	{
+		$$ = new (Expression);
+		$$->opcode = Expression::META;
+		$$->meta.kind = $$->meta.NAMEOF;
+		$$->meta.value = $2;
+	}
 
 prefix_operator:
 

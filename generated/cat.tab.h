@@ -153,10 +153,12 @@ union CATSTYPE
 	
 	CatLang::Expression* case_range [2];
 	
-	struct { CatLang::Symbol* init, *cont; CatLang::Expression* condition; }
+	struct { CatLang::Symbol* setup, *proceed; CatLang::Expression* condition; }
 	* iterator;
+	
+	std::vector <char*>* members;
 
-#line 160 "cat.tab.h"
+#line 162 "cat.tab.h"
 
 };
 typedef union CATSTYPE CATSTYPE;

@@ -143,14 +143,41 @@ struct Expression
 		char c, chr;
 	};
 	
-	
 	fast opcode;
 	bool constant_value = false;
 	
 	union
 	{
-		Variable* variable;
-		Constant constant;
+		struct
+		{
+			enum Kind { SIZEOF, COUNTOF, NAMEOF }
+			kind;
+			
+			Expression* value;
+		}
+		meta;
+		
+		struct
+		{
+			Label path;
+			Variable* ptr;
+		}
+		variable;
+		
+		struct
+		{
+			struct
+			{
+				Label path;
+				Function* ptr;
+			}
+			function;
+			
+			Expression* arguments;
+		}
+		call;
+		
+		char* constant; // leave literals in string-form (no loss of precision and no conversion-related issues)
 		Expression* operands [2];
 	};
 };
