@@ -137,11 +137,13 @@ std::vector <Symbol*> scopes;
 
 %type <symbol> statement
 %type <symbol> line
-%type <symbol> declare-namespace
+%type <symbol> module
 
 %type <label> label
 
 %type <expression> expression
+%type <expression> expressions
+%type <expression> list-expression
 %type <expression> value
 %type <expression> meta-value
 %type <token> const-value
@@ -149,10 +151,13 @@ std::vector <Symbol*> scopes;
 %type <case_range> case-expression
 %type <expression> range
 %type <scope> else-block
+%type <token>	struct-module-union
 
 %type <members> members
 
 %type <iterator> iterator
+
+%type <token> semicolon colon
 
 %start block
 
@@ -357,15 +362,15 @@ statement:
 		$$->scope.insert ($2->setup);
 	}
 	
-| declare-namespace
+| module
 |	line
 
 semicolon:
-	%empty %prec EMPTY
+	%empty %prec EMPTY { $$ = & current.token; }
 |	';'
 
 colon:
-	%empty %prec EMPTY
+	%empty %prec EMPTY { $$ = & current.token; }
 |	':'
 
 label:
@@ -373,6 +378,7 @@ label:
 	NAME members
 	{
 		$$ = new (Label);
+		$$->location = $1->location;
 		$$->names = *$2; free ($2);
 		$$->names.insert ($$->names.begin(), $1->text);
 	}
@@ -408,20 +414,39 @@ iterator:
 	}
 
 line:
+	
 	braced-scope
-|	declare-variables
-|	declare-function
+	{
+		$$ = new (Symbol);
+		$$->kind = Symbol::SCOPE;
+		$$->location = $1->location;
+		
+		$$->scope = *$1; free ($1);
+		$$->scope.kind = Scope::STACK;
+	}
+	
+|	qualifiers variables semicolon
+|	qualifiers function
 |	expressions semicolon
+	{
+		$$ = new (Symbol);
+		$$->kind = Symbol::EXPRESSION;
+		$$->location = $1->location;
+		
+		memcpy (& $$->expression, $1, sizeof (Expression));
+		free ($1);
+	}
+	
 |	';' { $$ = 0; } // empty statement, dont create a symbol for this
 
 scope:
 
 	braced-scope
-|	colon block ELLIPSES { $$ = $2; }	
-|	';'                  { $$ = new (Scope); }
+|	colon block ELLIPSES { $$ = $2; $$->location = $1->location; }
+|	';'                  { $$ = new (Scope); $$->location = $1->location; }
 
 braced-scope:
-	'{' block '}' { $$ = $2; }
+	'{' block '}' { $$ = $2; $$->location = $1->location; }
 
 enum-scope:
 	'{' optional_instances '}'
@@ -432,20 +457,28 @@ optional_instances:
 	%empty
 |	instances
 
-declare-namespace:
+module:
 	qualifiers struct-module-union label scope
-|	qualifiers ENUM enum-scope
+	{
+		$$ = new (Symbol);
+		$$->kind = Symbol::SCOPE;
+		$$->location = $2->location;
+		
+		$$->scope = *$4; free ($4);
+		
+		$$->scope.name = $3->names.back();
+		$$->scope.kind = $2->integer;
+		
+		// TODO: find target scope using path label
+	}
+	
+|	qualifiers ENUM label enum-scope
 
 struct-module-union:
-	STRUCT
-|	MODULE
-|	UNION
 
-declare-variables:
-	qualifiers variables semicolon
-
-declare-function:
-	qualifiers function
+	STRUCT { $$->integer = Scope::STRUCT; }
+|	MODULE { $$->integer = Scope::MODULE; }
+|	UNION { $$->integer = Scope::UNION; }
 
 qualifiers:
 	%empty %prec EMPTY
@@ -554,13 +587,40 @@ int:
 |	INT
 
 expressions:
+
 	expression %prec ','
 |	expressions ',' expression
+	{
+		$$ = new (Expression);
+		$$->opcode = Expression::COMMA;
+		$$->location = $2->location;
+		
+		$$->operands [0] = $1;
+		$$->operands [1] = $3;
+	}
+
+list-expression:
+
+	expression %prec ','
+	{
+		$$ = new (Expression);
+		$$->opcode = Expression::LIST;
+		$$->location = $1->location;
+		
+		$$->list.push_back ($1);
+	}
+	
+|	list-expression ',' expression
+	{
+		$$ = $1;
+		$$->list.push_back ($3);
+	}
+	
 
 expression:
 
-	'(' expressions ')'
-|	'[' expressions ']'
+	'(' expressions ')' { $$ = $2; }
+|	'[' list-expression ']' { $$ = $2; }
 |	value
 |	prefix_operator expression %prec PREFIX
 	{}
@@ -575,6 +635,7 @@ expression:
 	{
 		$$ = new (Expression);
 		$$->opcode = Expression::CALL;
+		$$->location = $1->location;
 		
 		$$->call.function.path = *$1; free ($1);
 		$$->call.arguments = $2;
@@ -586,6 +647,7 @@ value:
 	{
 		$$ = new (Expression);
 		$$->opcode = Expression::VALUEOF;
+		$$->location = $1->location;
 		$$->variable.path = *$1; free ($1);
 	}
 	
@@ -593,6 +655,7 @@ value:
 	{
 		$$ = new (Expression);
 		$$->opcode = Expression::LITERAL;
+		$$->location = $1->location;
 		$$->constant = $1->text;
 	}
 		
@@ -611,6 +674,7 @@ meta-value:
 	{
 		$$ = new (Expression);
 		$$->opcode = Expression::META;
+		$$->location = $1->location;
 		$$->meta.kind = $$->meta.SIZEOF;
 		$$->meta.value = $2;
 	}
@@ -619,6 +683,7 @@ meta-value:
 	{
 		$$ = new (Expression);
 		$$->opcode = Expression::META;
+		$$->location = $1->location;
 		$$->meta.kind = $$->meta.COUNTOF;
 		$$->meta.value = $2;
 	}
@@ -627,6 +692,7 @@ meta-value:
 	{
 		$$ = new (Expression);
 		$$->opcode = Expression::META;
+		$$->location = $1->location;
 		$$->meta.kind = $$->meta.NAMEOF;
 		$$->meta.value = $2;
 	}

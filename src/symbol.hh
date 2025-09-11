@@ -86,9 +86,10 @@ struct Type
 struct Label
 {
 	std::vector <char*> names;
+	Location location;
 };
 
-struct Tag { char* name; };
+struct Tag { char* name; Location location; };
 
 struct Variable: Tag
 {
@@ -131,7 +132,8 @@ struct Scope: Tag
 
 struct Expression
 {
-	enum Opcode {
+	enum Opcode
+	{
 		#include "opcode.def"
 	};
 	
@@ -143,42 +145,45 @@ struct Expression
 		char c, chr;
 	};
 	
+	Location location;
+	
 	fast opcode;
 	bool constant_value = false;
 	
-	union
+	struct Meta
+	{
+		enum Kind { SIZEOF, COUNTOF, NAMEOF }
+		kind;
+		Expression* value;
+	};
+	
+	struct Reference
+	{
+		Label path;
+		Variable* ptr;
+	};
+	
+	struct Call
 	{
 		struct
 		{
-			enum Kind { SIZEOF, COUNTOF, NAMEOF }
-			kind;
-			
-			Expression* value;
-		}
-		meta;
-		
-		struct
-		{
 			Label path;
-			Variable* ptr;
+			Function* ptr;
 		}
-		variable;
+		function;
 		
-		struct
-		{
-			struct
-			{
-				Label path;
-				Function* ptr;
-			}
-			function;
-			
-			Expression* arguments;
-		}
-		call;
+		Expression* arguments;
+	};
+	
+	union
+	{
+		Meta meta;
+		Reference variable;
+		Call call;
 		
 		char* constant; // leave literals in string-form (no loss of precision and no conversion-related issues)
 		Expression* operands [2];
+		std::vector <Expression*> list;
 	};
 };
 
@@ -254,12 +259,6 @@ struct Symbol
 		Return return_marker;
 	};
 };
-
-typedef Symbol* (* new_Symbol_fn) ();
-
-extern
-new_Symbol_fn
-new_Scope;
 
 Symbol* findin (char* name, Symbol* scope); // look for a symbol only within the scope, not its outer scopes
 Symbol* lookup (char* name, Symbol* scope);
