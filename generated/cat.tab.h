@@ -48,17 +48,15 @@
 extern int catdebug;
 #endif
 /* "%code requires" blocks.  */
-#line 18 "../src/cat.y"
+#line 25 "../src/cat.y"
 
+	#include <vector>
 
-#include <vector>
+	#include "log.hh"
+	#include "token.hh"
+	#include "symbol.hh"
 
-#include "log.hh"
-#include "token.hh"
-#include "symbol.hh"
-
-
-#line 62 "cat.tab.h"
+#line 60 "cat.tab.h"
 
 /* Token kinds.  */
 #ifndef CATTOKENTYPE
@@ -132,7 +130,8 @@ extern int catdebug;
     EMPTY = 318,                   /* EMPTY  */
     INFIX = 319,                   /* INFIX  */
     PREFIX = 320,                  /* PREFIX  */
-    POSTFIX = 321                  /* POSTFIX  */
+    POSTFIX = 321,                 /* POSTFIX  */
+    ATOMIC = 322                   /* ATOMIC  */
   };
   typedef enum cattokentype cattoken_kind_t;
 #endif
@@ -141,23 +140,23 @@ extern int catdebug;
 #if ! defined CATSTYPE && ! defined CATSTYPE_IS_DECLARED
 union CATSTYPE
 {
-#line 113 "../src/cat.y"
+#line 116 "../src/cat.y"
 
+	Token* token;
+	
+	CatLang::Label* label;
+	CatLang::Symbol* symbol;
+	
+	CatLang::Scope* scope;
+	
+	CatLang::Expression* expression;
+	
+	CatLang::Expression* case_range [2];
+	
+	struct { CatLang::Symbol* init, *cont; CatLang::Expression* condition; }
+	* iterator;
 
-enum Kind
-{
-	NAME,
-	LABEL,
-	SYMBOL,
-}
-kind;
-
-char* name;
-CatLang::Label* label;
-CatLang::Symbol* symbol;
-
-
-#line 161 "cat.tab.h"
+#line 160 "cat.tab.h"
 
 };
 typedef union CATSTYPE CATSTYPE;

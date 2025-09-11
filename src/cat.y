@@ -3,26 +3,31 @@
 /* Prologue */
 
 #include "cat.h"
+#include "symbol.hh"
 
-#define YYDEBUG 1
+#define new(TYPE) (TYPE*)malloc(sizeof(TYPE))
+#define newn(TYPE, CT) (TYPE*)malloc(sizeof(TYPE)*CT)
 
 void caterror (const char*);
 
 /* handle end of file */
 int yywrap ();
 
+using namespace CatLang;
+
+std::vector <Symbol*> scopes;
+
 %}
 
 /* Declarations (Bison) */
 
-%code requires {
+%code requires
+{
+	#include <vector>
 
-#include <vector>
-
-#include "log.hh"
-#include "token.hh"
-#include "symbol.hh"
-
+	#include "log.hh"
+	#include "token.hh"
+	#include "symbol.hh"
 }
 
 %define api.prefix {cat}
@@ -30,55 +35,53 @@ int yywrap ();
 %glr-parser
 %debug
 
-%token '(' ')' '[' ']' '{' '}'
-%token '!' '#' '$' '%' '&' '*' '+' ','
-%token '-' '.' '/' ':' ';' '<' '>' '='
-%token '?' '@' '^' '_' '|' '~'
+%token <token>  '(' ')' '[' ']' '{' '}'
+%token <token>  '!' '#' '$' '%' '&' '*' '+' ','
+%token <token>  '-' '.' '/' ':' ';' '<' '>' '='
+%token <token>  '?' '@' '^' '_' '|' '~'
 
-%token AND /* && */
-%token OR /* || */
-%token INCREMENT /* ++ */
-%token DECREMENT /* -- */
-%token SHIFT_L /*	<< */
-%token SHIFT_R /* >> */
-%token ROTATE_L /* <<< */
-%token ROTATE_R /* >>> */
-%token COMPARE /* == */
-%token INEQUAL /* != */
-%token AT_MOST /* <= */
-%token AT_LEAST /* >= */
+%token <token>  AND /* && */
+%token <token>  OR /* || */
+%token <token>  INCREMENT /* ++ */
+%token <token>  DECREMENT /* -- */
+%token <token>  SHIFT_L /*	<< */
+%token <token>  SHIFT_R /* >> */
+%token <token>  ROTATE_L /* <<< */
+%token <token>  ROTATE_R /* >>> */
+%token <token>  COMPARE /* == */
+%token <token>  INEQUAL /* != */
+%token <token>  AT_MOST /* <= */
+%token <token>  AT_LEAST /* >= */
 
-%token TAIL /* .. */
-%token ELLIPSES /* ... */
+%token <token>  TAIL /* .. */
+%token <token>  ELLIPSES /* ... */
 
-%token CONST_INT
-%token CONST_FLOAT
-%token CONST_STRING
-%token CONST_CHAR
+%token <token>  CONST_INT
+%token <token>  CONST_FLOAT
+%token <token>  CONST_STRING
+%token <token>  CONST_CHAR
 
-%token COMMENT_LINE
-%token COMMENT_BLOCK
+%token <token>  COMMENT_LINE
+%token <token>  COMMENT_BLOCK
 
-%token NAME
+%token <token>  NAME
 
-%token BIT CHAR BYTE SHORT INT FLOAT
+%token <token>  BIT CHAR BYTE SHORT INT FLOAT
 
-%token ALIAS
-%token INCLUDE INLINE
-%token SIZEOF COUNTOF NAMEOF TYPEOF
-%token LOCAL STATIC	CONST EXTERN
-%token SIGNED	UNSIGNED COMPLEX IMAGINARY LONG DOUBLE
-%token BREAK CONTINUE RETURN GOTO
-%token STRUCT UNION MODULE ENUM
-%token WHILE DO FOR
-%token IF	ELSE SWITCH
-%token CASE DEFAULT
+%token <token>  ALIAS
+%token <token>  INCLUDE INLINE
+%token <token>  SIZEOF COUNTOF NAMEOF TYPEOF
+%token <token>  LOCAL STATIC	CONST EXTERN
+%token <token>  SIGNED	UNSIGNED COMPLEX IMAGINARY LONG DOUBLE
+%token <token>  BREAK CONTINUE RETURN GOTO
+%token <token>  STRUCT UNION MODULE ENUM
+%token <token>  WHILE DO FOR
+%token <token>  IF	ELSE SWITCH
+%token <token>  CASE DEFAULT
 
 /* Token Precedence */
 
 %nonassoc EMPTY
-
-%nonassoc NAME WHILE
 
 %nonassoc TAIL
 
@@ -96,35 +99,55 @@ int yywrap ();
 %left SHIFT_L SHIFT_R ROTATE_L ROTATE_R
 %left '+' '-'
 %left '*' '/' '%'
-
 %left INFIX
+
+%right PREFIX
+%right '(' '{' '[' '!' '~' ':' WHILE
+
+%left POSTFIX
+%left ')' ']' INCREMENT DECREMENT
 
 %nonassoc CONST_INT CONST_FLOAT CONST_STRING CONST_CHAR
 %nonassoc SIZEOF COUNTOF NAMEOF
+%nonassoc NAME
+%nonassoc ATOMIC
 
-%right '(' '[' '!' '~' PREFIX
+%union
+{
+	Token* token;
+	
+	CatLang::Label* label;
+	CatLang::Symbol* symbol;
+	
+	CatLang::Scope* scope;
+	
+	CatLang::Expression* expression;
+	
+	CatLang::Expression* case_range [2];
+	
+	struct { CatLang::Symbol* init, *cont; CatLang::Expression* condition; }
+	* iterator;
+}
 
-%left ')' ']' POSTFIX INCREMENT DECREMENT
+%type <scope> block
+%type <scope> scope
+%type <scope> braced-scope
 
-%right '{' ':'
+%type <symbol> statement
+%type <symbol> line
+%type <symbol> declare-namespace
+
+%type <label> label
+
+%type <expression> expression
+
+%type <case_range> case-expression
+%type <expression> range
+%type <scope> else-block
+
+%type <iterator> iterator
 
 %start block
-
-%union {
-
-enum Kind
-{
-	NAME,
-	LABEL,
-	SYMBOL,
-}
-kind;
-
-char* name;
-CatLang::Label* label;
-CatLang::Symbol* symbol;
-
-}
 
 %%
 
@@ -133,34 +156,202 @@ CatLang::Symbol* symbol;
 block:
 
 	%empty
-|	statements
-
-statements:
-	
-	statement
-|	statements statement
+	{
+		$$ = new (Scope);
+	}
+|	block statement
+	{
+		$$ = $1;
+		$$->insert ($2);
+	}
 
 statement:
 
 	error statement
-|	line
-| ALIAS NAME label semicolon
+	{
+		// TODO: structured and intuitive error handling
+		
+		// [!] On error, abort and start a new statement
+		$$ = $2;
+	}
+	
+| ALIAS NAME '=' label semicolon
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::ALIAS;
+		$$->location = $1->location;
+		
+		$$->alias.name = $2->text;
+		$$->alias.path = *$4; free ($4);
+	}
+	
 |	NAME ':'
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::MARKER;
+		$$->location = $1->location;
+		
+		$$->marker.name = $1->text;
+	}
+	
 |	CASE case-expression colon
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::CASE;
+		$$->location = $1->location;
+		
+		$$->case_marker.expression = $2 [0];
+		$$->case_marker.fallthrough = $2 [1];
+	}
+	
 |	DEFAULT colon
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::CASE;
+		$$->location = $1->location;
+		
+		// (should be zero already, but just in case)
+		$$->case_marker.expression = 0;
+	}
+	
 |	INCLUDE label semicolon
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::INCLUDE;
+		$$->location = $1->location;
+		
+		$$->include.path = *$2; free ($2);
+	}
+	
 |	CONTINUE semicolon
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::CONTINUE;
+		$$->location = $1->location;
+	}
+	
 |	BREAK semicolon
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::BREAK;
+		$$->location = $1->location;
+	}
+	
 |	GOTO NAME semicolon
-|	RETURN expression semicolon
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::GOTO;
+		$$->location = $1->location;
+		
+		$$->go_to.marker = $2->text;
+	}
+	
+|	RETURN expression semicolon %prec ATOMIC
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::RETURN;
+		$$->location = $1->location;
+		
+		$$->return_marker.value = $2;
+	}
+	
 |	RETURN semicolon
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::RETURN;
+		$$->location = $1->location;
+		
+		// (should already be 0, but just in case)
+		$$->return_marker.value = 0;
+	}
+	
 |	IF expression scope else-block
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::SCOPE;
+		$$->location = $1->location;
+		
+		$$->scope = *$3; free ($3);
+		$$->scope.kind = Scope::IF;
+		$$->scope.condition = $2;
+		$$->scope.alternate = $4;
+	}
+	
 |	SWITCH expression scope
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::SCOPE;
+		$$->location = $1->location;
+		
+		$$->scope = *$3; free ($3);
+		$$->scope.kind = Scope::SWITCH;
+		$$->scope.condition = $2;
+	}
+	
 |	WHILE expression scope
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::SCOPE;
+		$$->location = $1->location;
+		
+		$$->scope = *$3; free ($3);
+		$$->scope.kind = Scope::WHILE;
+		$$->scope.condition = $2;
+	}
+	
 |	DO WHILE expression scope
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::SCOPE;
+		$$->location = $1->location;
+		
+		$$->scope = *$4; free ($4);
+		$$->scope.kind = Scope::DO_WHILE;
+		$$->scope.condition = $3;
+	}
+	
 |	DO scope WHILE expression semicolon
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::SCOPE;
+		$$->location = $1->location;
+		
+		$$->scope = *$2; free ($2);
+		$$->scope.kind = Scope::DO_WHILE;
+		$$->scope.condition = $4;
+	}
+	
 |	FOR iterator scope
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::SCOPE;
+		$$->location = $1->location;
+		
+		$$->scope = *$3; free ($3);
+		$$->scope.kind = Scope::FOR;
+		$$->scope.condition = $2->condition;
+		$$->scope.continue_action = $2->cont;
+		$$->scope.insert ($2->init);
+	}
+	
 | declare-namespace
+|	line
 
 semicolon:
 	%empty %prec EMPTY
@@ -178,19 +369,29 @@ members:
 |	members '.' NAME
 
 case-expression:
+	
 	expression range
+	{
+		$$ [0] = $1;
+		$$ [1] = $2;
+	}
 
 range:
-	%empty %prec EMPTY
-|	TAIL expression
+	%empty %prec EMPTY { $$ = 0; }
+|	TAIL expression { $$ = $2; }
 
 else-block:
-	%empty
-|	ELSE scope
+	%empty { $$ = 0; }
+|	ELSE scope { $$ = $2; }
 
 iterator:
-	'(' iterator ')'
-|	line expression ';' line
+	'(' iterator ')' { $$ = $2; }
+|	line ';' expression ';' line
+	{
+		$$->init = $1;
+		$$->condition = $3;
+		$$->cont = $5;
+	}
 
 line:
 	braced-scope
@@ -200,12 +401,13 @@ line:
 |	';'
 
 scope:
+
 	braced-scope
-|	colon block ELLIPSES
-|	';'
+|	colon block ELLIPSES { $$ = $2; }	
+|	';'                  { $$ = new (Scope); }
 
 braced-scope:
-	'{' block '}'
+	'{' block '}' { $$ = $2; }
 
 enum-scope:
 	'{' optional_instances '}'
