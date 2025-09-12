@@ -189,7 +189,7 @@ Symbol* SymbolFrom (Function*);
 %type <variable> instance
 %type <function> function
 
-%type <case_range> case-expression
+%type <case_range> range-expression
 %type <expression> range
 %type <scope> else-block
 %type <token>	struct-module-union
@@ -255,7 +255,7 @@ statement:
 		$$->marker.name = $1->text;
 	}
 	
-|	CASE case-expression colon
+|	CASE range-expression colon
 	{
 		$$ = new (Symbol);
 		
@@ -435,7 +435,7 @@ members:
 	%empty { $$ = new (std::vector<char*>); }
 |	members '.' NAME { $$ = $1; $$->push_back ($3->text); }
 
-case-expression:
+range-expression:
 	
 	expression range
 	{
