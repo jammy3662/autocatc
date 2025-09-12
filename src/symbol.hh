@@ -14,6 +14,12 @@ namespace CatLang {
 
 struct Scope;
 
+struct Label
+{
+	std::vector <char*> names;
+	Location location;
+};
+
 struct Type
 {
 	enum DataType
@@ -52,12 +58,13 @@ struct Type
 	struct User
 	{
 		Scope* structure;
+		Label* path;
 	};
 	
 	struct Pointer
 	{
 		Type* pointee;
-		bool constness: 1;
+		bool constness: 1, c_style: 1;
 	};
 	
 	struct Array
@@ -83,18 +90,13 @@ struct Type
 	};
 };
 
-struct Label
-{
-	std::vector <char*> names;
-	Location location;
-};
-
 struct Tag { char* name; Location location; };
 
 struct Variable: Tag
 {
 	Type type;
 	Expression* initializer;
+	bool is_variadic;
 };
 
 struct Function: Tag

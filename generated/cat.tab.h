@@ -158,13 +158,30 @@ union CATSTYPE
 	
 	struct { unsigned byte is_local: 1, is_static: 1, is_extern: 1, is_inline: 1; } qualifiers;
 	
+	CatLang::Type::Numeric::Representation type_qualifier;
+	
 	std::vector <char*>* members;
 	
 	std::vector <CatLang::Variable*>* variables;
 	CatLang::Variable* variable;
 	CatLang::Function* function;
+	
+	CatLang::Type* type;
+	
+	std::vector <CatLang::Expression*>* lengths;
+	
+	CatLang::Type::Pointer pointer;
+	
+	struct
+	{
+		int count;
+		CatLang::Type::Pointer pointers [32];
+	}
+	indirection;
+	
+	bool boolean;
 
-#line 168 "cat.tab.h"
+#line 185 "cat.tab.h"
 
 };
 typedef union CATSTYPE CATSTYPE;

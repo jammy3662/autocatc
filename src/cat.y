@@ -5,8 +5,8 @@
 #include "cat.h"
 #include "symbol.hh"
 
-#define new(TYPE) (TYPE*)malloc(sizeof(TYPE))
-#define newn(TYPE, CT) (TYPE*)malloc(sizeof(TYPE)*CT)
+#define new(TYPE) (TYPE*)calloc(sizeof(TYPE),1)
+#define newn(TYPE, CT) (TYPE*)calloc(sizeof(TYPE),CT)
 
 void caterror (const char*);
 
@@ -133,11 +133,28 @@ Symbol* SymbolFrom (Function*);
 	
 	struct { unsigned byte is_local: 1, is_static: 1, is_extern: 1, is_inline: 1; } qualifiers;
 	
+	CatLang::Type::Numeric::Representation type_qualifier;
+	
 	std::vector <char*>* members;
 	
 	std::vector <CatLang::Variable*>* variables;
 	CatLang::Variable* variable;
 	CatLang::Function* function;
+	
+	CatLang::Type* type;
+	
+	std::vector <CatLang::Expression*>* lengths;
+	
+	CatLang::Type::Pointer pointer;
+	
+	struct
+	{
+		int count;
+		CatLang::Type::Pointer pointers [32];
+	}
+	indirection;
+	
+	bool boolean;
 }
 
 %type <scope> block
@@ -146,15 +163,17 @@ Symbol* SymbolFrom (Function*);
 %type <scope> enum-scope
 %type <scope> tuple
 %type <scope> parameters parameters-or-none
-%type <scope> instances optional-instances
+%type <scope> enum-instances
 
 %type <symbol> statement
 %type <symbol> line
 %type <symbol> module
 
 %type <label> label
+%type <type> type
 
 %type <expression> expression
+%type <expression> initializer
 %type <expression> expressions
 %type <expression> list-expression
 %type <expression> value
@@ -162,8 +181,12 @@ Symbol* SymbolFrom (Function*);
 %type <token> const-value
 
 %type <qualifiers> qualifiers
+%type <type_qualifier> type-qualifiers
+%type <type_qualifier> type-qualifier
 %type <variables> variables
 %type <variable> variable
+%type <variables> instances
+%type <variable> instance
 %type <function> function
 
 %type <case_range> case-expression
@@ -172,6 +195,12 @@ Symbol* SymbolFrom (Function*);
 %type <token>	struct-module-union
 
 %type <members> members
+%type <lengths> lengths
+%type <expression> length
+%type <pointer> pointer
+%type <indirection> indirection
+
+%type <boolean> const
 
 %type <iterator> iterator
 
@@ -451,6 +480,11 @@ line:
 		$$->kind = Symbol::VARIABLE_LIST;
 		$$->location = $2->front()->location;
 		
+		$$->is_local = $1.is_local;
+		$$->is_static = $1.is_static;
+		$$->is_extern = $1.is_extern;
+		$$->is_inline = $1.is_inline;
+		
 		$$->variable_list = *$2; free ($2);
 	}
 	
@@ -485,13 +519,35 @@ braced-scope:
 	'{' block '}' { $$ = $2; $$->location = $1->location; }
 
 enum-scope:
-	'{' optional-instances '}' { $$ = $2; }
-|	colon optional-instances ELLIPSES { $$ = $2; }
-|	';' { $$ = new (Scope); $$->location = $1->location; }
+	'{' enum-instances '}' { $$ = $2; }
+|	colon enum-instances ELLIPSES { $$ = $2; }
+|	';'
+	{
+		$$ = new (Scope);
+		$$->kind = Scope::ENUM;
+		$$->location = $1->location;
+	}
 
-optional-instances:
-	%empty { $$ = new (Scope); $$->location = current.location; }
+enum-instances:
+	%empty
+	{
+		$$ = new (Scope);
+		$$->kind = Scope::ENUM;
+		$$->location = current.location;
+	}
+	
 |	instances
+	{
+		$$ = new (Scope);
+		$$->kind = Scope::ENUM;
+		$$->location = $1->front()->location;
+		
+		Symbol* list = new (Symbol);
+		list->kind = Symbol::VARIABLE_LIST;
+		list->location = $1->front()->location;
+		
+		$$->insert (list);
+	}
 
 module:
 	qualifiers struct-module-union label scope
@@ -537,30 +593,118 @@ qualifiers:
 |	qualifiers INLINE { $$.is_inline = true; }
 
 variable:
+	
 	type instance
+	{
+		$$ = $2;
+		
+		Type* type = & $2->type;
+		
+		while (type->data is Type::ARRAY or type->data is Type::POINTER)
+		{
+			if (type->data is Type::ARRAY)
+				type = type->array.contents;
+			else
+				type = type->pointer.pointee;
+		}
+		
+		*type = *$1; free ($1);
+	}
 
 variables:
+	
 	type instances
+	{
+		$$ = $2;
+		
+		for (auto instance: *$2)
+		{
+			Type* type = & instance->type;
+			
+			while (type->data is Type::ARRAY or type->data is Type::POINTER)
+			{
+				if (type->data is Type::ARRAY)
+					type = type->array.contents;
+				else
+					type = type->pointer.pointee;
+			}
+			
+			*type = *$1; free ($1);
+		}
+	}
 
 instances:
+	
 	instance
+	{
+		$$ = new (std::vector <Variable*>);
+		$$->push_back ($1);
+	}
+	
 |	instances ',' instance
+	{
+		$$ = $1;
+		$$->push_back ($3);
+	}
 
 instance:
+	
 	label lengths initializer
+	{
+		$$ = new (Variable);
+		$$->name = $1->names.back();
+		$$->location = $1->location;
+		$$->initializer = $3;
+		$$->is_variadic = false;
+		
+		Type* type = & $$->type;
+		
+		for (auto length : *$2)
+		{
+			type->data = Type::ARRAY;
+			type->array.count = length;
+			
+			type->array.contents = new (Type);
+			type = type->array.contents;
+		}
+		
+		// TODO: find target scope using path label
+	}
+	
 |	label lengths TAIL
-|	error
+	{
+		$$ = new (Variable);
+		$$->name = $1->names.back();
+		$$->location = $1->location;
+		$$->initializer = 0;
+		$$->is_variadic = true;
+		
+		Type* type = & $$->type;
+		
+		for (auto length : *$2)
+		{
+			type->data = Type::ARRAY;
+			type->array.count = length;
+			
+			type->array.contents = new (Type);
+			type = type->array.contents;
+		}
+		
+		// TODO: find target scope using path label
+	}
+	
+|	error { $$ = 0; }
 
 lengths:
-	%empty %prec EMPTY
-|	lengths length
+	%empty %prec EMPTY { $$ = new (std::vector <Expression*>); }
+|	lengths length { $$ = $1; $$->push_back ($2); }
 
 length:
-	'[' expression ']'
+	'[' expression ']' { $$ = $2; }
 
 initializer:
-	%empty %prec EMPTY
-|	'=' expression
+	%empty %prec EMPTY { $$ = 0; }
+|	'=' expression { $$ = $2; }
 
 function:
 	
@@ -597,31 +741,53 @@ parameters:
 	}
 
 type:
+	
 	type-qualifiers datatype indirection
+	{
+		$$ = new (Type);
+		
+		Type* type = $$;
+		
+		int idx = 0;
+		for (; idx < $3.count; ++idx);
+		{
+			type->data = Type::POINTER;
+			type->pointer = $3.pointers [idx];
+			type->pointer.pointee = new Type;
+			
+			type = type->pointer.pointee;
+		}
+		
+		// TODO: if datatype is numeric, use type-qualifiers
+	}
 
 type-qualifiers:
-	%empty
-|	type-qualifiers type-qualifier
+	%empty { $$ = Type::Numeric::Representation::SIGNED; }
+|	type-qualifiers type-qualifier { $$ = $2; }
 
 type-qualifier:
 
-	CONST
-|	SIGNED
-|	UNSIGNED
-|	COMPLEX
-|	IMAGINARY
+	SIGNED    { $$ = Type::Numeric::Representation::SIGNED; }
+|	UNSIGNED  { $$ = Type::Numeric::Representation::UNSIGNED; }
+|	COMPLEX   { $$ = Type::Numeric::Representation::COMPLEX; }
+|	IMAGINARY { $$ = Type::Numeric::Representation::IMAGINARY; }
 
 indirection:
-	%empty
+	
+	%empty { $$.count = 0; }
+	
 |	indirection pointer
+	{
+		$$.pointers [$$.count] = $2;
+	}
 
 pointer:
-	'~' const
-|	'*' const
+	'~' const { $$.constness = $2; $$.c_style = false; }
+|	'*' const { $$.constness = $2; $$.c_style = true; }
 
 const:
-	%empty
-|	CONST
+	%empty { $$ = false; }
+|	CONST  { $$ = true; }
 
 datatype:
 

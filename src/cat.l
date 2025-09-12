@@ -210,7 +210,7 @@ void advance()
 	return (CONST_FLOAT);
 }
 
-L?\'(\\.|[^\\"])*\' {
+L?\'(\\.|[^\\'])*\' {
 	
 	// (multi-)character constant
 	advance();
