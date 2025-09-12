@@ -32,6 +32,8 @@ struct Type
 		ARRAY,
 		FUNCTION,
 		USER /* tuple, struct, union, or enum */,
+		META,
+		UNRESOLVED, // type defined elsewhere
 	};
 	
 	DataType data = NONE;
@@ -82,11 +84,12 @@ struct Type
 	
 	union
 	{
-		Numeric numeric;
+		Numeric number;
 		User user_def;
 		Pointer pointer;
 		Array array;
 		Function function;
+		Label* path;
 	};
 };
 
@@ -149,7 +152,7 @@ struct Expression
 	
 	Location location;
 	
-	fast opcode;
+	fast opcode; // uses TOKEN values of operators
 	bool constant_value = false;
 	
 	struct Meta

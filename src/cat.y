@@ -147,6 +147,8 @@ Symbol* SymbolFrom (Function*);
 	
 	CatLang::Type::Pointer pointer;
 	
+	CatLang::Type::Numeric basic_type;
+	
 	struct
 	{
 		int count;
@@ -155,6 +157,7 @@ Symbol* SymbolFrom (Function*);
 	indirection;
 	
 	bool boolean;
+	int integer;
 }
 
 %type <scope> block
@@ -171,6 +174,10 @@ Symbol* SymbolFrom (Function*);
 
 %type <label> label
 %type <type> type
+%type <type> datatype
+%type <basic_type> basic-type
+%type <integer> longs
+%type <integer> long
 
 %type <expression> expression
 %type <expression> initializer
@@ -199,6 +206,10 @@ Symbol* SymbolFrom (Function*);
 %type <expression> length
 %type <pointer> pointer
 %type <indirection> indirection
+
+%type <token> prefix-operator infix-operator postfix-operator
+%type <token> arithmetic
+
 
 %type <boolean> const
 
@@ -744,9 +755,7 @@ type:
 	
 	type-qualifiers datatype indirection
 	{
-		$$ = new (Type);
-		
-		Type* type = $$;
+		Type* type = new (Type);
 		
 		int idx = 0;
 		for (; idx < $3.count; ++idx);
@@ -758,7 +767,12 @@ type:
 			type = type->pointer.pointee;
 		}
 		
-		// TODO: if datatype is numeric, use type-qualifiers
+		*type = *$2; free ($2);
+		
+		if (type->data is Type::NUMERIC)
+		{
+			type->number.representation = $1;
+		}
 	}
 
 type-qualifiers:
@@ -792,27 +806,53 @@ const:
 datatype:
 
 	basic-type
+	{
+		$$ = new (Type);
+		$$->data = Type::NUMERIC;
+		$$->number = $1;
+	}
+	
 |	tuple
+	{
+		$$ = new (Type);
+		$$->data = Type::USER;
+		$$->user_def.structure = $1;
+	}
+	
 |	TYPEOF label
+	{
+		$$ = new (Type);
+		$$->data = Type::META;
+		$$->path = $2;
+	}
+	
 |	label
+	{
+		$$ = new (Type);
+		$$->data = Type::UNRESOLVED;
+		$$->path = $1;
+	}
 
 basic-type:
-	BIT
-|	CHAR
-|	BYTE
-|	SHORT int
-|	longs int
-|	INT
-|	FLOAT
-|	long DOUBLE
+	
+	BIT         { $$.scalar = Type::Numeric::BIT; }
+|	CHAR        { $$.scalar = Type::Numeric::CHAR; }
+|	BYTE        { $$.scalar = Type::Numeric::BYTE; }
+|	SHORT int   { $$.scalar = Type::Numeric::SHORT; }
+|	longs int   { $$.scalar = Type::Numeric::LONG; $$.is_long = $1; }
+|	INT         { $$.scalar = Type::Numeric::INT; }
+|	FLOAT       { $$.scalar = Type::Numeric::FLOAT; }
+|	long DOUBLE { $$.scalar = Type::Numeric::DOUBLE; $$.is_long = $1; }
 
 longs:
-	LONG
-|	longs LONG
+	
+	LONG { $$ = 0;}
+|	longs LONG { $$ = 1; }
 
 long:
-	%empty
-|	LONG
+	
+	%empty { $$ = 0; }
+|	LONG { $$ = 1; }
 
 int:
 	%empty
@@ -825,7 +865,7 @@ expressions:
 	{
 		$$ = new (Expression);
 		$$->opcode = Expression::COMMA;
-		$$->location = $2->location;
+		$$->location = $1->location;
 		
 		$$->operands [0] = $1;
 		$$->operands [1] = $3;
@@ -854,14 +894,34 @@ expression:
 	'(' expressions ')' { $$ = $2; }
 |	'[' list-expression ']' { $$ = $2; }
 |	value
-|	prefix_operator expression %prec PREFIX
-	{}
 	
-|	expression infix_operator expression %prec INFIX
-	{}
+|	prefix-operator expression %prec PREFIX
+	{
+		$$ = new (Expression);
+		$$->opcode = $1->integer;
+		$$->location = $1->location;
+		
+		$$->operands [0] = $2;
+	}
 	
-|	expression postfix_operator %prec POSTFIX
-	{}
+|	expression postfix-operator %prec POSTFIX
+	{
+		$$ = new (Expression);
+		$$->opcode = $2->integer;
+		$$->location = $1->location;
+		
+		$$->operands [0] = $1;
+	}
+	
+|	expression infix-operator expression %prec INFIX
+	{
+		$$ = new (Expression);
+		$$->opcode = $2->integer;
+		$$->location = $1->location;
+		
+		$$->operands [0] = $1;
+		$$->operands [1] = $3;
+	}
 	
 |	label expression %prec '('
 	{
@@ -929,35 +989,50 @@ meta-value:
 		$$->meta.value = $2;
 	}
 
-prefix_operator:
+prefix-operator:
 
-	'!'
-|	'~'
-|	INCREMENT
-|	DECREMENT
-|	'+'
-|	'-'
-|	'*'
-|	'&'
+	'!' { $$ = $1; $1->integer = Expression::NOT; }
+|	'~' { $$ = $1; $1->integer = Expression::COMPLEMENT; }
+|	INCREMENT { $$ = $1; $1->integer = Expression::PRE_INCREMENT; }
+|	DECREMENT { $$ = $1; $1->integer = Expression::PRE_DECREMENT; }
+|	'+' { $$ = $1; $1->integer = Expression::PLUS; }
+|	'-' { $$ = $1; $1->integer = Expression::MINUS; }
+|	'*' { $$ = $1; $1->integer = Expression::DEREFERENCE; }
+|	'&' { $$ = $1; $1->integer = Expression::ADDRESS; }
 
-postfix_operator:
+postfix-operator:
 
-	INCREMENT %prec POSTFIX
-|	DECREMENT %prec POSTFIX
+	INCREMENT %prec POSTFIX { $$ = $1; $1->integer = Expression::POST_INCREMENT; }
+|	DECREMENT %prec POSTFIX { $$ = $1; $1->integer = Expression::POST_DECREMENT; }
 
-infix_operator:
+infix-operator:
 
-	AND	|	OR | COMPARE | INEQUAL
-|	'<' | AT_MOST | '>' | AT_LEAST
+	AND { $$ = $1; $1->integer = Expression::BOTH; }
+|	OR { $$ = $1; $1->integer = Expression::EITHER; }	
+|	COMPARE { $$ = $1; $1->integer = Expression::EQUALS; }
+|	INEQUAL { $$ = $1; $1->integer = Expression::INEQUAL; }
+|	'<' { $$ = $1; $1->integer = Expression::LESS; }
+| AT_MOST { $$ = $1; $1->integer = Expression::LESS_OR_EQUAL; }
+| '>' { $$ = $1; $1->integer = Expression::MORE; }
+| AT_LEAST { $$ = $1; $1->integer = Expression::MORE_OR_EQUAL; }
 |	arithmetic
-|	arithmetic '='
-|	'='
+|	arithmetic '=' { $$ = $1; $1->integer += Expression::ASSIGN; }
+|	'=' { $$ = $1; $1->integer = Expression::ASSIGN; }
 
 arithmetic:
-	'*' | '/' | '%' | '&'
-|	'+' | '-' | '^' | '|'
-|	SHIFT_L | SHIFT_R
-|	ROTATE_L | ROTATE_R
+
+	'*' { $$ = $1; $1->integer = Expression::MULTIPLY; }
+|	'/' { $$ = $1; $1->integer = Expression::DIVIDE; }
+|	'%' { $$ = $1; $1->integer = Expression::MOD; }
+|	'&' { $$ = $1; $1->integer = Expression::AND; }
+|	'+' { $$ = $1; $1->integer = Expression::PLUS; }
+|	'-' { $$ = $1; $1->integer = Expression::MINUS; }
+|	'^' { $$ = $1; $1->integer = Expression::XOR; }
+|	'|' { $$ = $1; $1->integer = Expression::OR; }
+|	SHIFT_L { $$ = $1; $1->integer = Expression::SHIFT_LEFT; }
+|	SHIFT_R { $$ = $1; $1->integer = Expression::SHIFT_RIGHT; }
+|	ROTATE_L { $$ = $1; $1->integer = Expression::ROTATE_LEFT; }
+|	ROTATE_R { $$ = $1; $1->integer = Expression::ROTATE_RIGHT; }
 
 %%
 
