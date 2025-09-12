@@ -181,7 +181,7 @@ struct Expression
 		Reference variable;
 		Call call;
 		
-		char* constant; // leave literals in string-form (no loss of precision and no conversion-related issues)
+		char* constant; // leave literals in string-form (no conversion-related loss of precision and no locale issues)
 		Expression* operands [2];
 		std::vector <Expression*> list;
 	};
@@ -211,6 +211,7 @@ struct Symbol
 	enum Kind
 	{
 		VARIABLE,
+		VARIABLE_LIST,
 		EXPRESSION,
 		FUNCTION,
 		
@@ -249,6 +250,7 @@ struct Symbol
 	{
 		Scope scope;
 		Variable variable;
+		std::vector <Variable*> variable_list;
 		Function function;
 		Expression expression;
 		Alias alias;

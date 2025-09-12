@@ -17,6 +17,9 @@ using namespace CatLang;
 
 std::vector <Symbol*> scopes;
 
+Symbol* SymbolFrom (Variable*);
+Symbol* SymbolFrom (Function*);
+
 %}
 
 /* Declarations (Bison) */
@@ -128,12 +131,22 @@ std::vector <Symbol*> scopes;
 	struct { CatLang::Symbol* setup, *proceed; CatLang::Expression* condition; }
 	* iterator;
 	
+	struct { unsigned byte is_local: 1, is_static: 1, is_extern: 1, is_inline: 1; } qualifiers;
+	
 	std::vector <char*>* members;
+	
+	std::vector <CatLang::Variable*>* variables;
+	CatLang::Variable* variable;
+	CatLang::Function* function;
 }
 
 %type <scope> block
 %type <scope> scope
 %type <scope> braced-scope
+%type <scope> enum-scope
+%type <scope> tuple
+%type <scope> parameters parameters-or-none
+%type <scope> instances optional-instances
 
 %type <symbol> statement
 %type <symbol> line
@@ -147,6 +160,11 @@ std::vector <Symbol*> scopes;
 %type <expression> value
 %type <expression> meta-value
 %type <token> const-value
+
+%type <qualifiers> qualifiers
+%type <variables> variables
+%type <variable> variable
+%type <function> function
 
 %type <case_range> case-expression
 %type <expression> range
@@ -426,7 +444,25 @@ line:
 	}
 	
 |	qualifiers variables semicolon
+	{
+		// because multiple variables are in one statement,
+		// create a "list statement" to ensure all variables are inserted into their scope
+		$$ = new (Symbol);
+		$$->kind = Symbol::VARIABLE_LIST;
+		$$->location = $2->front()->location;
+		
+		$$->variable_list = *$2; free ($2);
+	}
+	
 |	qualifiers function
+	{
+		$$ = new (Symbol);
+		$$->kind = Symbol::FUNCTION;
+		$$->location = $2->location;
+		
+		$$->function = *$2; free ($2);
+	}
+	
 |	expressions semicolon
 	{
 		$$ = new (Symbol);
@@ -449,12 +485,12 @@ braced-scope:
 	'{' block '}' { $$ = $2; $$->location = $1->location; }
 
 enum-scope:
-	'{' optional_instances '}'
-|	colon optional_instances ELLIPSES
-|	';'
+	'{' optional-instances '}' { $$ = $2; }
+|	colon optional-instances ELLIPSES { $$ = $2; }
+|	';' { $$ = new (Scope); $$->location = $1->location; }
 
-optional_instances:
-	%empty
+optional-instances:
+	%empty { $$ = new (Scope); $$->location = current.location; }
 |	instances
 
 module:
@@ -473,6 +509,19 @@ module:
 	}
 	
 |	qualifiers ENUM label enum-scope
+	{
+		$$ = new (Symbol);
+		$$->kind = Symbol::SCOPE;
+		$$->location = $2->location;
+		
+		$$->scope = *$4; free ($4);
+		
+		
+		$$->scope.name = $3->names.back();
+		$$->scope.kind = Scope::ENUM;
+		
+		// TODO: find target scope using path label
+	}
 
 struct-module-union:
 
@@ -481,14 +530,11 @@ struct-module-union:
 |	UNION { $$->integer = Scope::UNION; }
 
 qualifiers:
-	%empty %prec EMPTY
-|	qualifiers qualifier
-
-qualifier:
-	LOCAL
-|	STATIC
-|	EXTERN
-|	INLINE
+	%empty %prec EMPTY { $$ = {false, false, false, false}; }
+|	qualifiers LOCAL  { $$.is_local = true; }
+|	qualifiers STATIC { $$.is_static = true; }
+|	qualifiers EXTERN { $$.is_extern = true; }
+|	qualifiers INLINE { $$.is_inline = true; }
 
 variable:
 	type instance
@@ -503,6 +549,7 @@ instances:
 instance:
 	label lengths initializer
 |	label lengths TAIL
+|	error
 
 lengths:
 	%empty %prec EMPTY
@@ -516,19 +563,38 @@ initializer:
 |	'=' expression
 
 function:
+	
 	type label tuple scope
+	{
+		$$ = new (Function);
+		
+		$$->name = $2->names.back();
+		$$->parameters = $3;
+		$$->body = $4;
+	}
 
 tuple:
-	'(' parameters-or-none ')'
+	'(' parameters-or-none ')' { $$ = $2; }
 
 parameters-or-none:
-	%empty %prec EMPTY
+	%empty %prec EMPTY { $$ = new (Scope); }
 |	parameters
 
 parameters:
 
 	variable
+	{
+		$$ = new (Scope);
+		$$->kind = Scope::STRUCT;
+		
+		$$->insert (SymbolFrom ($1));
+	}
+	
 |	parameters ',' variable
+	{
+		$$ = $1;
+		$$->insert (SymbolFrom ($3));
+	}
 
 type:
 	type-qualifiers datatype indirection

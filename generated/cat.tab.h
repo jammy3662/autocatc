@@ -48,7 +48,7 @@
 extern int catdebug;
 #endif
 /* "%code requires" blocks.  */
-#line 25 "../src/cat.y"
+#line 28 "../src/cat.y"
 
 	#include <vector>
 
@@ -140,7 +140,7 @@ extern int catdebug;
 #if ! defined CATSTYPE && ! defined CATSTYPE_IS_DECLARED
 union CATSTYPE
 {
-#line 116 "../src/cat.y"
+#line 119 "../src/cat.y"
 
 	Token* token;
 	
@@ -156,9 +156,15 @@ union CATSTYPE
 	struct { CatLang::Symbol* setup, *proceed; CatLang::Expression* condition; }
 	* iterator;
 	
+	struct { unsigned byte is_local: 1, is_static: 1, is_extern: 1, is_inline: 1; } qualifiers;
+	
 	std::vector <char*>* members;
+	
+	std::vector <CatLang::Variable*>* variables;
+	CatLang::Variable* variable;
+	CatLang::Function* function;
 
-#line 162 "cat.tab.h"
+#line 168 "cat.tab.h"
 
 };
 typedef union CATSTYPE CATSTYPE;
