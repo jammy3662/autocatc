@@ -215,6 +215,7 @@ Symbol* SymbolFrom (Variable*);
 %type <iterator> iterator
 %type <iterator> range-iterator
 %type <iterator> type-iterator
+%type <iterator> iterator-define
 
 %type <token> semicolon colon
 
@@ -448,8 +449,8 @@ statement:
 		$$->scope.continue_action = $2.proceed;
 		$$->scope.insert ($2.setup);
 	}
-
-|	ITERATOR iterator
+	
+|	ITERATOR iterator-define
 	{
 		$$ = new (Symbol);
 		$$->kind = Symbol::ITERATOR;
@@ -540,11 +541,14 @@ range-iterator:
 		$$.condition->operands [1] = $3->operands [1];
 	}
 
+iterator-define:
+	iterator
+|	range-iterator
+|	type-iterator
+
 type-iterator:
 	
-	'(' type-iterator ')' { $$ = $2; }
-	
-|	NAME ':' expression
+	NAME ':' expression
 	{
 		$$.container = $3;
 	}
