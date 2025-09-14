@@ -90,6 +90,7 @@ void advance()
 "..." { advance(); return (ELLIPSES); }
 
 "alias" { advance(); return (ALIAS); }
+"iterator" { advance(); return (ITERATOR); }
 
 "include"	{ advance(); return (INCLUDE); }
 "inline"	{ advance(); return (INLINE); }

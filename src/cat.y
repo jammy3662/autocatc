@@ -18,7 +18,6 @@ using namespace CatLang;
 std::vector <Symbol*> scopes;
 
 Symbol* SymbolFrom (Variable*);
-Symbol* SymbolFrom (Function*);
 
 %}
 
@@ -71,7 +70,7 @@ Symbol* SymbolFrom (Function*);
 
 %token <token>  BIT CHAR BYTE SHORT INT FLOAT
 
-%token <token>  ALIAS
+%token <token>  ALIAS ITERATOR
 %token <token>  INCLUDE INLINE
 %token <token>  SIZEOF COUNTOF NAMEOF TYPEOF
 %token <token>  LOCAL STATIC	CONST EXTERN
@@ -128,8 +127,7 @@ Symbol* SymbolFrom (Function*);
 	
 	CatLang::Expression* case_range [2];
 	
-	struct { CatLang::Symbol* setup, *proceed; CatLang::Expression* condition; }
-	* iterator;
+	CatLang::Iterator iterator;
 	
 	struct { unsigned byte is_local: 1, is_static: 1, is_extern: 1, is_inline: 1; } qualifiers;
 	
@@ -196,7 +194,8 @@ Symbol* SymbolFrom (Function*);
 %type <variable> instance
 %type <function> function
 
-%type <case_range> range-expression
+%type <expression> case-expression
+%type <expression> range-expression
 %type <expression> range
 %type <scope> else-block
 %type <token>	struct-module-union
@@ -214,6 +213,8 @@ Symbol* SymbolFrom (Function*);
 %type <boolean> const
 
 %type <iterator> iterator
+%type <iterator> range-iterator
+%type <iterator> type-iterator
 
 %type <token> semicolon colon
 
@@ -266,15 +267,15 @@ statement:
 		$$->marker.name = $1->text;
 	}
 	
-|	CASE range-expression colon
+|	CASE case-expression colon
 	{
 		$$ = new (Symbol);
 		
 		$$->kind = Symbol::CASE;
 		$$->location = $1->location;
 		
-		$$->case_marker.expression = $2 [0];
-		$$->case_marker.fallthrough = $2 [1];
+		$$->case_marker.expression = $2->operands [0];
+		$$->case_marker.fallthrough = $2->operands [1];
 	}
 	
 |	DEFAULT colon
@@ -415,9 +416,46 @@ statement:
 		
 		$$->scope = *$3; free ($3);
 		$$->scope.kind = Scope::FOR;
-		$$->scope.condition = $2->condition;
-		$$->scope.continue_action = $2->proceed;
-		$$->scope.insert ($2->setup);
+		$$->scope.condition = $2.condition;
+		$$->scope.continue_action = $2.proceed;
+		$$->scope.insert ($2.setup);
+	}
+	
+|	FOR range-iterator scope
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::SCOPE;
+		$$->location = $1->location;
+		
+		$$->scope = *$3; free ($3);
+		$$->scope.kind = Scope::FOR;
+		$$->scope.condition = $2.condition;
+		$$->scope.continue_action = $2.proceed;
+		$$->scope.insert ($2.setup);
+	}
+	
+|	FOR	type-iterator scope
+	{
+		$$ = new (Symbol);
+		
+		$$->kind = Symbol::SCOPE;
+		$$->location = $1->location;
+		
+		$$->scope = *$3; free ($3);
+		$$->scope.kind = Scope::FOR;
+		$$->scope.condition = $2.condition;
+		$$->scope.continue_action = $2.proceed;
+		$$->scope.insert ($2.setup);
+	}
+
+|	ITERATOR iterator
+	{
+		$$ = new (Symbol);
+		$$->kind = Symbol::ITERATOR;
+		$$->location = $1->location;
+		
+		$$->iterator = $2;
 	}
 	
 | module
@@ -446,17 +484,22 @@ members:
 	%empty { $$ = new (std::vector<char*>); }
 |	members '.' NAME { $$ = $1; $$->push_back ($3->text); }
 
+case-expression:
+
+	expression %prec EMPTY
+|	range-expression
+
 range-expression:
 	
 	expression range
 	{
-		$$ [0] = $1;
-		$$ [1] = $2;
+		$$ = new (Expression);
+		$$->operands [0] = $1;
+		$$->operands [1] = $2;
 	}
 
 range:
-	%empty %prec EMPTY { $$ = 0; }
-|	TAIL expression { $$ = $2; }
+	TAIL expression { $$ = $2; }
 
 else-block:
 	%empty { $$ = 0; }
@@ -466,9 +509,44 @@ iterator:
 	'(' iterator ')' { $$ = $2; }
 |	line ';' expression ';' line
 	{
-		$$->setup = $1;
-		$$->condition = $3;
-		$$->proceed = $5;
+		$$.setup = $1;
+		$$.condition = $3;
+		$$.proceed = $5;
+	}
+
+range-iterator:
+	
+	'(' range-iterator ')' { $$ = $2; }
+	
+|	NAME ':' range-expression
+	{
+		$$.setup = new (Symbol);
+		$$.setup->kind = Symbol::VARIABLE;
+		$$.setup->location = $1->location;
+		
+		$$.setup->variable.name = $1->text;
+		$$.setup->variable.initializer = $3->operands [0];
+		
+		$$.proceed = new (Symbol);
+		$$.proceed->expression.opcode = Expression::PRE_INCREMENT;
+		
+		$$.proceed->expression.operand = new (Expression);
+		$$.proceed->expression.operand->opcode = Expression::VALUEOF;
+		$$.proceed->expression.variable.ptr = $$.setup;
+		
+		$$.condition = new (Expression);
+		$$.condition->opcode = Expression::AT_MOST;
+		$$.condition->operands [0] = $$.proceed->expression.operand;
+		$$.condition->operands [1] = $3->operands [1];
+	}
+
+type-iterator:
+	
+	'(' type-iterator ')' { $$ = $2; }
+	
+|	NAME ':' expression
+	{
+		$$.container = $3;
 	}
 
 line:
@@ -901,7 +979,7 @@ expression:
 		$$->opcode = $1->integer;
 		$$->location = $1->location;
 		
-		$$->operands [0] = $2;
+		$$->operand = $2;
 	}
 	
 |	expression postfix-operator %prec POSTFIX
@@ -910,7 +988,7 @@ expression:
 		$$->opcode = $2->integer;
 		$$->location = $1->location;
 		
-		$$->operands [0] = $1;
+		$$->operand = $1;
 	}
 	
 |	expression infix-operator expression %prec INFIX
@@ -1041,4 +1119,9 @@ arithmetic:
 void caterror (const char* message)
 {
 	fprintf (stderr, "Parse error: %s\n", message);
+}
+
+Symbol* SymbolFrom (Variable*)
+{
+	// TODO
 }

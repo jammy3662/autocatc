@@ -7,6 +7,7 @@ VALUEOF, // object / variable access
 META, // sizeof, nameof, countof
 GROUP, // () parentheses group of expression(s)
 LIST, // [] sequential expressions in an array
+RANGE, // 1..9 numbers within a range (inclusive)
 
 POST_INCREMENT /* ++ */,
 POST_DECREMENT /* -- */,
@@ -42,6 +43,8 @@ LESS, // <
 MORE, // >
 LESS_OR_EQUAL, // <=
 MORE_OR_EQUAL, // >=
+AT_MOST = LESS_OR_EQUAL,
+AT_LEAST = MORE_OR_EQUAL,
 
 EQUALS, // ==
 INEQUAL, // !=

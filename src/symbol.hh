@@ -128,6 +128,8 @@ struct Scope: Tag
 	std::vector <Variable> fields; // index into members
 	std::multimap <std::string, fast> nametable;// index into members
 	
+	struct Iterator* iterator; // generalized for loop definition
+	
 	struct Expression* condition;
 	struct Symbol* continue_action;
 	Scope* alternate;
@@ -165,7 +167,7 @@ struct Expression
 	struct Reference
 	{
 		Label path;
-		Variable* ptr;
+		Symbol* ptr;
 	};
 	
 	struct Call
@@ -187,6 +189,7 @@ struct Expression
 		Call call;
 		
 		char* constant; // leave literals in string-form (no conversion-related loss of precision and no locale issues)
+		Expression* operand;
 		Expression* operands [2];
 		std::vector <Expression*> list;
 	};
@@ -211,6 +214,14 @@ struct Include
 struct Return
 { struct Expression* value; };
 
+struct Iterator
+{
+	struct Symbol* setup;
+	struct Symbol* proceed;
+	struct Expression* condition;
+	Expression* container;
+};
+
 struct Symbol
 {
 	enum Kind
@@ -221,6 +232,7 @@ struct Symbol
 		FUNCTION,
 		
 		SCOPE,
+		ITERATOR,
 		
 		MARKER,
 		GOTO,
@@ -264,11 +276,11 @@ struct Symbol
 		Case case_marker;
 		Include include;
 		Return return_marker;
+		Iterator iterator;
 	};
 };
 
-Symbol* findin (char* name, Symbol* scope); // look for a symbol only within the scope, not its outer scopes
-Symbol* lookup (char* name, Symbol* scope);
+Symbol* findin (Label name, Symbol* scope); // look for a symbol only within the scope, not its outer scopes
 Symbol* lookup (Label path, Symbol* scope);
 
 }
