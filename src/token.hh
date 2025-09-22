@@ -5,7 +5,7 @@
 
 struct Location
 {
-	short line = 1, column = 1;
+	short line, column;
 	char* source_file;
 };
 
@@ -15,6 +15,7 @@ struct Token
 	Location location;
 	
 	char* text;
+	
 	union
 	{
 		long long int integer;
@@ -26,7 +27,7 @@ extern struct current
 {
 	char* comment = 0;
 	
-	Location location;
+	Location location = {1, 1};
 	Token token;
 }
 current;

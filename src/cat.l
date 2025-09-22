@@ -90,7 +90,9 @@ void advance()
 "..." { advance(); return (ELLIPSES); }
 
 "alias" { advance(); return (ALIAS); }
+"template" { advance(); return (TEMPLATE); }
 "iterator" { advance(); return (ITERATOR); }
+"operator" { advance(); return (OPERATOR); }
 
 "include"	{ advance(); return (INCLUDE); }
 "inline"	{ advance(); return (INLINE); }
@@ -124,20 +126,21 @@ void advance()
 "int"		{ advance(); return (INT); }
 "float"	{ advance(); return (FLOAT); }
 
-"break"			{ advance(); return (BREAK); }
-"continue"	{ advance(); return (CONTINUE); }
-"return"		{ advance(); return (RETURN); }
-"goto"			{ advance(); return (GOTO); }
+"break"     { advance(); return (BREAK); }
+"continue"  { advance(); return (CONTINUE); }
+"return"    { advance(); return (RETURN); }
+"goto"      { advance(); return (GOTO); }
 
-"while"	{ advance(); return (WHILE); }
-"do"		{ advance(); return (DO); }
-"for"		{ advance(); return (FOR); }
+"while" { advance(); return (WHILE); }
+"do"    { advance(); return (DO); }
+"for"   { advance(); return (FOR); }
 
-"if"			{ advance(); return (IF); }
-"else"		{ advance(); return (ELSE); }
-"switch"	{ advance(); return (SWITCH); }
-"case"		{ advance(); return (CASE); }
-"default"	{ advance(); return (DEFAULT); }
+"if"      { advance(); return (IF); }
+"else"    { advance(); return (ELSE); }
+"switch"  { advance(); return (SWITCH); }
+"case"    { advance(); return (CASE); }
+"default" { advance(); return (DEFAULT); }
+"as"      { advance(); return (AS); }
 
 [_a-zA-Z][\`_a-zA-Z0-9]* {
 	

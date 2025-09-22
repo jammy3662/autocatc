@@ -2,12 +2,15 @@
 // the c operator precedence rules
 // https://en.cppreference.com/w/c/language/operator_precedence
 
+INVALID = -1,
+
 LITERAL, // handwritten / constant value
-VALUEOF, // object / variable access
+VARIABLE, // object / variable access
 META, // sizeof, nameof, countof
 GROUP, // () parentheses group of expression(s)
 LIST, // [] sequential expressions in an array
 RANGE, // 1..9 numbers within a range (inclusive)
+CAST, // int 4.0 cast value to type
 
 POST_INCREMENT /* ++ */,
 POST_DECREMENT /* -- */,

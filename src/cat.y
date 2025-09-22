@@ -5,9 +5,6 @@
 #include "cat.h"
 #include "symbol.hh"
 
-#define new(TYPE) (TYPE*)calloc(sizeof(TYPE),1)
-#define newn(TYPE, CT) (TYPE*)calloc(sizeof(TYPE),CT)
-
 void caterror (const char*);
 
 /* handle end of file */
@@ -15,20 +12,15 @@ int yywrap ();
 
 using namespace CatLang;
 
-std::vector <Symbol*> scopes;
-
-Symbol* SymbolFrom (Variable*);
-
 %}
 
 /* Declarations (Bison) */
 
 %code requires
 {
-	#include <vector>
-
 	#include "log.hh"
 	#include "token.hh"
+	#include "parser.hh"
 	#include "symbol.hh"
 }
 
@@ -70,7 +62,7 @@ Symbol* SymbolFrom (Variable*);
 
 %token <token>  BIT CHAR BYTE SHORT INT FLOAT
 
-%token <token>  ALIAS ITERATOR
+%token <token>  ALIAS TEMPLATE ITERATOR OPERATOR
 %token <token>  INCLUDE INLINE
 %token <token>  SIZEOF COUNTOF NAMEOF TYPEOF
 %token <token>  LOCAL STATIC	CONST EXTERN
@@ -80,6 +72,7 @@ Symbol* SymbolFrom (Variable*);
 %token <token>  WHILE DO FOR
 %token <token>  IF	ELSE SWITCH
 %token <token>  CASE DEFAULT
+%token <token>	AS
 
 /* Token Precedence */
 
@@ -116,46 +109,48 @@ Symbol* SymbolFrom (Variable*);
 
 %union
 {
-	Token* token;
+	Token token;
 	
-	CatLang::Label* label;
-	CatLang::Symbol* symbol;
+	CatLang::Label label;
 	
-	CatLang::Scope* scope;
+	CatLang::Statement statement;
 	
-	CatLang::Expression* expression;
-	
-	CatLang::Expression* case_range [2];
-	
-	CatLang::Iterator iterator;
-	
-	struct { unsigned byte is_local: 1, is_static: 1, is_extern: 1, is_inline: 1; } qualifiers;
-	
-	CatLang::Type::Numeric::Representation type_qualifier;
-	
-	std::vector <char*>* members;
-	
-	std::vector <CatLang::Variable*>* variables;
-	CatLang::Variable* variable;
-	CatLang::Function* function;
-	
-	CatLang::Type* type;
-	
-	std::vector <CatLang::Expression*>* lengths;
-	
+	CatLang::Symbol::Qualifiers qualifiers;
 	CatLang::Type::Pointer pointer;
-	
+	CatLang::Type::Numeric::Representation type_qualifier;
 	CatLang::Type::Numeric basic_type;
+	
+	CatLang::Template templates;
+	
+	CatLang::Symbol* symbol;
+	CatLang::Iterator* iterator;
+	
+	Array <CatLang::Symbol*> symbols;
+	Array <CatLang::Label> labels;
+	Array <CatLang::Variable*> variables;
+	
+	Array <CatLang::Expression*> lengths;
+	
+	CatLang::Type type;
+	CatLang::Scope scope;
+	opt <CatLang::Scope> scope_opt;
+	CatLang::Variable variable;
+	CatLang::Function function;
+	CatLang::Expression* expression;
+	CatLang::Expression range [2];
 	
 	struct
 	{
 		int count;
-		CatLang::Type::Pointer pointers [32];
+		struct { byte c_style: 1, constant: 1; }
+		pointers [32];
 	}
 	indirection;
 	
 	bool boolean;
 	int integer;
+	
+	CATSTYPE () {}
 }
 
 %type <scope> block
@@ -166,9 +161,12 @@ Symbol* SymbolFrom (Variable*);
 %type <scope> parameters parameters-or-none
 %type <scope> enum-instances
 
-%type <symbol> statement
+%type <statement> statement
 %type <symbol> line
 %type <symbol> module
+
+%type <templates> template
+%type <templates> template-parameters
 
 %type <label> label
 %type <type> type
@@ -180,6 +178,8 @@ Symbol* SymbolFrom (Variable*);
 %type <expression> expression
 %type <expression> initializer
 %type <expression> expressions
+%type <expression> arguments
+%type <expression> argument
 %type <expression> list-expression
 %type <expression> value
 %type <expression> meta-value
@@ -196,11 +196,9 @@ Symbol* SymbolFrom (Variable*);
 
 %type <expression> case-expression
 %type <expression> range-expression
-%type <expression> range
-%type <scope> else-block
+%type <scope_opt> else-block
 %type <token>	struct-module-union
 
-%type <members> members
 %type <lengths> lengths
 %type <expression> length
 %type <pointer> pointer
@@ -212,10 +210,10 @@ Symbol* SymbolFrom (Variable*);
 
 %type <boolean> const
 
-%type <iterator> iterator
+%type <iterator> c-iterator
 %type <iterator> range-iterator
 %type <iterator> type-iterator
-%type <iterator> iterator-define
+%type <iterator> iterator
 
 %type <token> semicolon colon
 
@@ -227,14 +225,14 @@ Symbol* SymbolFrom (Variable*);
 
 block:
 
-	%empty
-	{
-		$$ = new (Scope);
-	}
+	%empty { $$ = {}; }
+	
 |	block statement
 	{
 		$$ = $1;
-		$$->insert ($2);
+		
+		for (int i = 0; i <	$2.count; ++i)
+			$$.insert ($2 [i]);
 	}
 
 statement:
@@ -243,325 +241,221 @@ statement:
 	{
 		// TODO: structured and intuitive error handling
 		
-		// [!] On error, abort and start a new statement
+		// on error, abort and start a new statement
 		$$ = $2;
 	}
 	
-| ALIAS NAME '=' label semicolon
+| ALIAS label '=' label semicolon
 	{
-		$$ = new (Symbol);
+		char* name = $2.names.back();
+		// TODO: handle nested names (a.b.name)
 		
-		$$->kind = Symbol::ALIAS;
-		$$->location = $1->location;
-		
-		$$->alias.name = $2->text;
-		$$->alias.path = *$4; free ($4);
+		$$ = new Alias ($1.location, name, $4);
 	}
 	
-|	NAME ':'
+|	label ':'
 	{
-		$$ = new (Symbol);
+		char* name = $1.names.back();
+		// TODO: handle nested names (a.b.name)
 		
-		$$->kind = Symbol::MARKER;
-		$$->location = $1->location;
-		
-		$$->marker.name = $1->text;
+		$$ = new Marker ($1.location, name);
 	}
 	
 |	CASE case-expression colon
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::CASE;
-		$$->location = $1->location;
-		
-		$$->case_marker.expression = $2->operands [0];
-		$$->case_marker.fallthrough = $2->operands [1];
+		$$ = new Case ($1.location, $2);
 	}
 	
 |	DEFAULT colon
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::CASE;
-		$$->location = $1->location;
-		
-		// (should be zero already, but just in case)
-		$$->case_marker.expression = 0;
+		$$ = new Case ($1.location);
 	}
 	
 |	INCLUDE label semicolon
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::INCLUDE;
-		$$->location = $1->location;
-		
-		$$->include.path = *$2; free ($2);
+		$$ = new Include ($1.location, $2); 
 	}
 	
 |	CONTINUE semicolon
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::CONTINUE;
-		$$->location = $1->location;
+		$$ = new Jump ($1.location, Jump::CONTINUE);
 	}
 	
 |	BREAK semicolon
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::BREAK;
-		$$->location = $1->location;
+		$$ = new Jump ($1.location, Jump::BREAK);
 	}
 	
-|	GOTO NAME semicolon
+|	GOTO label semicolon
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::GOTO;
-		$$->location = $1->location;
-		
-		$$->go_to.marker = $2->text;
+		$$ = new Jump ($1.location, $2);
 	}
 	
 |	RETURN expression semicolon %prec ATOMIC
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::RETURN;
-		$$->location = $1->location;
-		
-		$$->return_marker.value = $2;
+		$$ = new Return ($1.location, $2);
 	}
 	
 |	RETURN semicolon
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::RETURN;
-		$$->location = $1->location;
-		
-		// (should already be 0, but just in case)
-		$$->return_marker.value = 0;
+		$$ = new Return ($1.location);
 	}
 	
 |	IF expression scope else-block
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::SCOPE;
-		$$->location = $1->location;
-		
-		$$->scope = *$3; free ($3);
-		$$->scope.kind = Scope::IF;
-		$$->scope.condition = $2;
-		$$->scope.alternate = $4;
+		$$ = new Conditional ($1.location, Conditional::IF, $2, $3, $4);
 	}
 	
 |	SWITCH expression scope
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::SCOPE;
-		$$->location = $1->location;
-		
-		$$->scope = *$3; free ($3);
-		$$->scope.kind = Scope::SWITCH;
-		$$->scope.condition = $2;
+		$$ = new Conditional ($1.location, Conditional::SWITCH, $2, $3);
 	}
 	
 |	WHILE expression scope
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::SCOPE;
-		$$->location = $1->location;
-		
-		$$->scope = *$3; free ($3);
-		$$->scope.kind = Scope::WHILE;
-		$$->scope.condition = $2;
+		$$ = new Conditional ($1.location, Conditional::WHILE, $2, $3);
 	}
 	
 |	DO WHILE expression scope
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::SCOPE;
-		$$->location = $1->location;
-		
-		$$->scope = *$4; free ($4);
-		$$->scope.kind = Scope::DO_WHILE;
-		$$->scope.condition = $3;
+		$$ = new Conditional ($1.location, Conditional::DO_WHILE, $3, $4);
 	}
 	
 |	DO scope WHILE expression semicolon
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::SCOPE;
-		$$->location = $1->location;
-		
-		$$->scope = *$2; free ($2);
-		$$->scope.kind = Scope::DO_WHILE;
-		$$->scope.condition = $4;
+		$$ = new Conditional ($1.location, Conditional::DO_WHILE, $4, $2);
 	}
 	
 |	FOR iterator scope
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::SCOPE;
-		$$->location = $1->location;
-		
-		$$->scope = *$3; free ($3);
-		$$->scope.kind = Scope::FOR;
-		$$->scope.condition = $2.condition;
-		$$->scope.continue_action = $2.proceed;
-		$$->scope.insert ($2.setup);
+		$$ = new For ($1.location, $2, $3);
 	}
 	
-|	FOR range-iterator scope
+|	ITERATOR iterator
 	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::SCOPE;
-		$$->location = $1->location;
-		
-		$$->scope = *$3; free ($3);
-		$$->scope.kind = Scope::FOR;
-		$$->scope.condition = $2.condition;
-		$$->scope.continue_action = $2.proceed;
-		$$->scope.insert ($2.setup);
-	}
-	
-|	FOR	type-iterator scope
-	{
-		$$ = new (Symbol);
-		
-		$$->kind = Symbol::SCOPE;
-		$$->location = $1->location;
-		
-		$$->scope = *$3; free ($3);
-		$$->scope.kind = Scope::FOR;
-		$$->scope.condition = $2.condition;
-		$$->scope.continue_action = $2.proceed;
-		$$->scope.insert ($2.setup);
-	}
-	
-|	ITERATOR iterator-define
-	{
-		$$ = new (Symbol);
-		$$->kind = Symbol::ITERATOR;
-		$$->location = $1->location;
-		
-		$$->iterator = $2;
+		$$ = $2;
 	}
 	
 | module
 |	line
 
 semicolon:
-	%empty %prec EMPTY { $$ = & current.token; }
+	%empty %prec EMPTY { $$ = current.token; }
 |	';'
 
 colon:
-	%empty %prec EMPTY { $$ = & current.token; }
+	%empty %prec EMPTY { $$ = current.token; }
 |	':'
+
+template:
+	
+	'[' template-parameters ']' { $$ = $2; }
+
+template-parameters:
+	
+	%empty %prec EMPTY
+	{
+		$$ = {};
+	}
+	
+|	template-parameters label
+	{
+		$$ = $1;
+		$$.append ($2);
+	}
 
 label:
 	
-	NAME members
+	NAME
 	{
-		$$ = new (Label);
-		$$->location = $1->location;
-		$$->names = *$2; free ($2);
-		$$->names.insert ($$->names.begin(), $1->text);
+		$$.location = $1.location;
+		$$.names = {};
+		$$.names.append ($1.text);
+	}
+	
+|	label '.' NAME
+	{
+		$$ = $1;
+		$$.names.append ($3.text);
 	}
 
-members:
-	
-	%empty { $$ = new (std::vector<char*>); }
-|	members '.' NAME { $$ = $1; $$->push_back ($3->text); }
-
 case-expression:
-
+	
 	expression %prec EMPTY
-|	range-expression
+|	range-expression %prec TAIL
 
 range-expression:
 	
-	expression range
+	expression TAIL expression
 	{
-		$$ = new (Expression);
-		$$->operands [0] = $1;
-		$$->operands [1] = $2;
+		$$ = new BinaryOperation
+		($1->location, $1, Expression::RANGE, $3);
 	}
 
-range:
-	TAIL expression { $$ = $2; }
-
 else-block:
-	%empty { $$ = 0; }
+	%empty { $$.valid = false; }
 |	ELSE scope { $$ = $2; }
 
 iterator:
+
 	'(' iterator ')' { $$ = $2; }
-|	line ';' expression ';' line
+|	c-iterator
+|	range-iterator
+|	type-iterator
+
+c-iterator:
+	
+	line ';' expression ';' line
 	{
-		$$.setup = $1;
-		$$.condition = $3;
-		$$.proceed = $5;
+		$$ = new Iterator ($1->location, $1, $3, $5);
 	}
 
 range-iterator:
 	
-	'(' range-iterator ')' { $$ = $2; }
-	
-|	NAME ':' range-expression
+	NAME ':' range-expression
 	{
-		$$.setup = new (Symbol);
-		$$.setup->kind = Symbol::VARIABLE;
-		$$.setup->location = $1->location;
+		Symbol* setup = new Symbol;
+		setup->kind = Symbol::VARIABLE;
+		setup->location = $1.location;
+		setup->variable.name = $1.text;
+		setup->variable.initializer = $3.operands [0]; 
 		
-		$$.setup->variable.name = $1->text;
-		$$.setup->variable.initializer = $3->operands [0];
+		Symbol* proceed = new Symbol;
+		proceed->kind = Symbol::EXPRESSION;
+		proceed->location = $1.location;
 		
-		$$.proceed = new (Symbol);
-		$$.proceed->expression.opcode = Expression::PRE_INCREMENT;
+		Expression* counter = Expression;
+		counter->opcode = Expression::VARIABLE;
+		counter->variable.ptr = setup;
 		
-		$$.proceed->expression.operand = new (Expression);
-		$$.proceed->expression.operand->opcode = Expression::VALUEOF;
-		$$.proceed->expression.variable.ptr = $$.setup;
+		Expression* increment = Expression;
+		increment->opcode = Expression::PRE_INCREMENT;
+		increment->operand = counter;
 		
-		$$.condition = new (Expression);
-		$$.condition->opcode = Expression::AT_MOST;
-		$$.condition->operands [0] = $$.proceed->expression.operand;
-		$$.condition->operands [1] = $3->operands [1];
+		Expression* condition = Expression;
+		condition->opcode = Expression::AT_MOST;
+		condition->operands [0] = counter;
+		condition->operands [1] = $3.operands [1];
+		
+		$$ = new Iterator (setup, condition, proceed);
 	}
-
-iterator-define:
-	iterator
-|	range-iterator
-|	type-iterator
 
 type-iterator:
 	
 	NAME ':' expression
 	{
-		$$.container = $3;
+		$$ = new Iterator ((Symbol*) $3);
 	}
 
 line:
 	
 	braced-scope
 	{
-		$$ = new (Symbol);
+		$$ = new <Symbol>();
 		$$->kind = Symbol::SCOPE;
-		$$->location = $1->location;
+		$$->location = $1.location;
 		
-		$$->scope = *$1; free ($1);
+		$$->scope = $1;
 		$$->scope.kind = Scope::STACK;
 	}
 	
@@ -569,9 +463,9 @@ line:
 	{
 		// because multiple variables are in one statement,
 		// create a "list statement" to ensure all variables are inserted into their scope
-		$$ = new (Symbol);
+		$$ = new <Symbol> ();
 		$$->kind = Symbol::VARIABLE_LIST;
-		$$->location = $2->front()->location;
+		$$->location = $2.front()->location;
 		
 		$$->is_local = $1.is_local;
 		$$->is_static = $1.is_static;
@@ -581,9 +475,9 @@ line:
 		$$->variable_list = *$2; free ($2);
 	}
 	
-|	qualifiers function
+|	template qualifiers function
 	{
-		$$ = new (Symbol);
+		$$ = new <Symbol> ();
 		$$->kind = Symbol::FUNCTION;
 		$$->location = $2->location;
 		
@@ -592,7 +486,7 @@ line:
 	
 |	expressions semicolon
 	{
-		$$ = new (Symbol);
+		$$ = new <Symbol> ();
 		$$->kind = Symbol::EXPRESSION;
 		$$->location = $1->location;
 		
@@ -606,7 +500,7 @@ scope:
 
 	braced-scope
 |	colon block ELLIPSES { $$ = $2; $$->location = $1->location; }
-|	';'                  { $$ = new (Scope); $$->location = $1->location; }
+|	';'                  { $$ = new <Scope> (); $$->location = $1->location; }
 
 braced-scope:
 	'{' block '}' { $$ = $2; $$->location = $1->location; }
@@ -616,7 +510,7 @@ enum-scope:
 |	colon enum-instances ELLIPSES { $$ = $2; }
 |	';'
 	{
-		$$ = new (Scope);
+		$$ = new <Scope> ();
 		$$->kind = Scope::ENUM;
 		$$->location = $1->location;
 	}
@@ -624,18 +518,18 @@ enum-scope:
 enum-instances:
 	%empty
 	{
-		$$ = new (Scope);
+		$$ = new <Scope> ();
 		$$->kind = Scope::ENUM;
 		$$->location = current.location;
 	}
 	
 |	instances
 	{
-		$$ = new (Scope);
+		$$ = new <Scope> ();
 		$$->kind = Scope::ENUM;
 		$$->location = $1->front()->location;
 		
-		Symbol* list = new (Symbol);
+		Symbol* list = new <Symbol> ();
 		list->kind = Symbol::VARIABLE_LIST;
 		list->location = $1->front()->location;
 		
@@ -645,7 +539,7 @@ enum-instances:
 module:
 	qualifiers struct-module-union label scope
 	{
-		$$ = new (Symbol);
+		$$ = new <Symbol> ();
 		$$->kind = Symbol::SCOPE;
 		$$->location = $2->location;
 		
@@ -659,7 +553,7 @@ module:
 	
 |	qualifiers ENUM label enum-scope
 	{
-		$$ = new (Symbol);
+		$$ = new <Symbol> ();
 		$$->kind = Symbol::SCOPE;
 		$$->location = $2->location;
 		
@@ -730,21 +624,21 @@ instances:
 	
 	instance
 	{
-		$$ = new (std::vector <Variable*>);
-		$$->push_back ($1);
+		$$ = new <Array <Variable*>> ();
+		$$->append ($1);
 	}
 	
 |	instances ',' instance
 	{
 		$$ = $1;
-		$$->push_back ($3);
+		$$->append ($3);
 	}
 
 instance:
 	
 	label lengths initializer
 	{
-		$$ = new (Variable);
+		$$ = new <Variable> ();
 		$$->name = $1->names.back();
 		$$->location = $1->location;
 		$$->initializer = $3;
@@ -757,7 +651,7 @@ instance:
 			type->data = Type::ARRAY;
 			type->array.count = length;
 			
-			type->array.contents = new (Type);
+			type->array.contents = new <Type> ();
 			type = type->array.contents;
 		}
 		
@@ -766,7 +660,7 @@ instance:
 	
 |	label lengths TAIL
 	{
-		$$ = new (Variable);
+		$$ = new <Variable> ();
 		$$->name = $1->names.back();
 		$$->location = $1->location;
 		$$->initializer = 0;
@@ -779,7 +673,7 @@ instance:
 			type->data = Type::ARRAY;
 			type->array.count = length;
 			
-			type->array.contents = new (Type);
+			type->array.contents = new <Type> ();
 			type = type->array.contents;
 		}
 		
@@ -789,8 +683,8 @@ instance:
 |	error { $$ = 0; }
 
 lengths:
-	%empty %prec EMPTY { $$ = new (std::vector <Expression*>); }
-|	lengths length { $$ = $1; $$->push_back ($2); }
+	%empty %prec EMPTY { $$ = new <Array <Expression*>> (); }
+|	lengths length { $$ = $1; $$->append ($2); }
 
 length:
 	'[' expression ']' { $$ = $2; }
@@ -803,7 +697,7 @@ function:
 	
 	type label tuple scope
 	{
-		$$ = new (Function);
+		$$ = new <Function> ();
 		
 		$$->name = $2->names.back();
 		$$->parameters = $3;
@@ -814,14 +708,14 @@ tuple:
 	'(' parameters-or-none ')' { $$ = $2; }
 
 parameters-or-none:
-	%empty %prec EMPTY { $$ = new (Scope); }
+	%empty %prec EMPTY { $$ = new <Scope> (); }
 |	parameters
 
 parameters:
 
 	variable
 	{
-		$$ = new (Scope);
+		$$ = new <Scope> ();
 		$$->kind = Scope::STRUCT;
 		
 		$$->insert (SymbolFrom ($1));
@@ -837,14 +731,14 @@ type:
 	
 	type-qualifiers datatype indirection
 	{
-		Type* type = new (Type);
+		Type* type = new <Type> ();
 		
 		int idx = 0;
 		for (; idx < $3.count; ++idx);
 		{
 			type->data = Type::POINTER;
 			type->pointer = $3.pointers [idx];
-			type->pointer.pointee = new Type;
+			type->pointer.pointee = new <Type> ();
 			
 			type = type->pointer.pointee;
 		}
@@ -889,28 +783,31 @@ datatype:
 
 	basic-type
 	{
-		$$ = new (Type);
+		$$ = new <Type> ();
 		$$->data = Type::NUMERIC;
 		$$->number = $1;
 	}
 	
 |	tuple
 	{
-		$$ = new (Type);
+		$$ = new <Type> ();
 		$$->data = Type::USER;
-		$$->user_def.structure = $1;
+		$$->user_def.ptr = $1;
+		
+		// TODO: ptr should be a Symbol* not Scope*
+		// construct a Symbol around tuple
 	}
 	
 |	TYPEOF label
 	{
-		$$ = new (Type);
+		$$ = new <Type> ();
 		$$->data = Type::META;
 		$$->path = $2;
 	}
 	
 |	label
 	{
-		$$ = new (Type);
+		$$ = new <Type> ();
 		$$->data = Type::UNRESOLVED;
 		$$->path = $1;
 	}
@@ -945,7 +842,7 @@ expressions:
 	expression %prec ','
 |	expressions ',' expression
 	{
-		$$ = new (Expression);
+		$$ = new <Expression> ();
 		$$->opcode = Expression::COMMA;
 		$$->location = $1->location;
 		
@@ -957,17 +854,17 @@ list-expression:
 
 	expression %prec ','
 	{
-		$$ = new (Expression);
+		$$ = new <Expression> ();
 		$$->opcode = Expression::LIST;
 		$$->location = $1->location;
 		
-		$$->list.push_back ($1);
+		$$->list.append ($1);
 	}
 	
 |	list-expression ',' expression
 	{
 		$$ = $1;
-		$$->list.push_back ($3);
+		$$->list.append ($3);
 	}
 	
 
@@ -979,7 +876,7 @@ expression:
 	
 |	prefix-operator expression %prec PREFIX
 	{
-		$$ = new (Expression);
+		$$ = new <Expression> ();
 		$$->opcode = $1->integer;
 		$$->location = $1->location;
 		
@@ -988,7 +885,7 @@ expression:
 	
 |	expression postfix-operator %prec POSTFIX
 	{
-		$$ = new (Expression);
+		$$ = new <Expression> ();
 		$$->opcode = $2->integer;
 		$$->location = $1->location;
 		
@@ -997,7 +894,7 @@ expression:
 	
 |	expression infix-operator expression %prec INFIX
 	{
-		$$ = new (Expression);
+		$$ = new <Expression> ();
 		$$->opcode = $2->integer;
 		$$->location = $1->location;
 		
@@ -1005,9 +902,12 @@ expression:
 		$$->operands [1] = $3;
 	}
 	
-|	label expression %prec '('
+|	label arguments %prec ATOMIC
 	{
-		$$ = new (Expression);
+		// TODO: function call OR type cast
+		// note that function calls with empty arguments are matched by the variable access expression
+		
+		$$ = new <Expression> ();
 		$$->opcode = Expression::CALL;
 		$$->location = $1->location;
 		
@@ -1015,19 +915,55 @@ expression:
 		$$->call.arguments = $2;
 	}
 
+arguments:
+	
+	argument %prec ','
+	{
+		$$ = new <Expression> ();
+		$$->opcode = Expression::LIST;
+		$$->location = $1->location;
+		
+		$$->list.append ($1);
+	}
+	
+|	arguments ',' argument
+	{
+		$$ = $1;
+		$$->list.append ($3);
+	}
+
+argument:
+	
+	label ':' expression %prec ':'
+	{
+		$$ = new <Expression> ();
+		$$->opcode = Expression::ASSIGN;
+		$$->location = $1->location;
+		
+		Expression* reference = new <Expression> ();
+		reference->opcode = Expression::VARIABLE;
+		reference->location = $1->location;
+		reference->variable.path = *$1; free ($1);
+		
+		$$->operands [0] = reference;
+		$$->operands [1] = $3;
+	}
+	
+|	expression %prec EMPTY
+
 value:
 	
 	label %prec NAME
 	{
-		$$ = new (Expression);
-		$$->opcode = Expression::VALUEOF;
+		$$ = new <Expression> ();
+		$$->opcode = Expression::VARIABLE;
 		$$->location = $1->location;
 		$$->variable.path = *$1; free ($1);
 	}
 	
 |	const-value
 	{
-		$$ = new (Expression);
+		$$ = new <Expression> ();
 		$$->opcode = Expression::LITERAL;
 		$$->location = $1->location;
 		$$->constant = $1->text;
@@ -1046,7 +982,7 @@ meta-value:
 
 	SIZEOF expression
 	{
-		$$ = new (Expression);
+		$$ = new <Expression> ();
 		$$->opcode = Expression::META;
 		$$->location = $1->location;
 		$$->meta.kind = $$->meta.SIZEOF;
@@ -1055,7 +991,7 @@ meta-value:
 	
 |	COUNTOF expression
 	{
-		$$ = new (Expression);
+		$$ = new <Expression> ();
 		$$->opcode = Expression::META;
 		$$->location = $1->location;
 		$$->meta.kind = $$->meta.COUNTOF;
@@ -1064,7 +1000,7 @@ meta-value:
 	
 |	NAMEOF expression
 	{
-		$$ = new (Expression);
+		$$ = new <Expression> ();
 		$$->opcode = Expression::META;
 		$$->location = $1->location;
 		$$->meta.kind = $$->meta.NAMEOF;
@@ -1125,7 +1061,4 @@ void caterror (const char* message)
 	fprintf (stderr, "Parse error: %s\n", message);
 }
 
-Symbol* SymbolFrom (Variable*)
-{
-	// TODO
-}
+CATSTYPE () {}
