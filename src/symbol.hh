@@ -15,17 +15,21 @@ namespace CatLang {
 
 struct Scope;
 
-struct Label
+struct Tag
+{
+	Location location;
+};
+
+struct Label: Tag
 {
 	Array <char*> names;
-	Location location;
 };
 
 /*-------------------------------------
  | Refers to a symbol
  | by direct pointer or unresolved path
  |_____________________________________*/
-struct Reference
+struct Reference: Tag
 {
 	Label path;
 	struct Symbol* ptr = 0;
@@ -37,7 +41,7 @@ struct Reference
 	{ ptr = symbol; }
 };
 
-struct Type
+struct Type: Tag
 {
 	enum DataType
 	{
@@ -53,91 +57,78 @@ struct Type
 		UNRESOLVED, // type defined elsewhere
 	};
 	
+	enum Representation
+	{ DEFAULT, SIGNED, UNSIGNED, REAL, IMAGINARY, COMPLEX };
+	
 	DataType data;
 	
 	unsigned byte
 	locality: 1,
 	staticness: 1,
-	constness: 1;
+	constness: 1,
+	representation: 3;
 	
-	struct Numeric
-	{
-		enum Representation
-		{ SIGNED, UNSIGNED, REAL, IMAGINARY, COMPLEX };
-		unsigned byte representation: 3;
-		
-		byte is_long: 1;
-		
-		enum Scalar
-		{ BIT, CHAR, BYTE, SHORT, INT, LONG,
-			FLOAT, DOUBLE, };
-		unsigned byte scalar: 3;
-	};
-	
-	struct Pointer
-	{
-		Type* pointee;
-		bool constness: 1, c_style: 1;
-	};
-	
-	struct Array
-	{
-		Type* contents;
-		struct Expression* count;
-	};
-
-	struct Function
-	{
-		Type* returned;
-		Type* parameters;
-		Scope* body;
-	};
-	
-	union
-	{
-		Numeric number;
-		Reference user_def;
-		Pointer pointer;
-		Array array;
-		Function function;
-		Label path;
-	};
+	struct Numeric;
+	struct Pointer;
+	struct Array;
+	struct Function;
 };
 
-struct Symbol
+struct Type::Numeric: Type
+{
+	byte is_long: 1;
+	
+	enum Scalar
+	{ BIT, CHAR, BYTE, SHORT, INT, LONG,
+		FLOAT, DOUBLE, };
+	unsigned byte scalar: 3;
+};
+
+struct Type::Pointer: Type
+{
+	Type* pointee;
+	bool constness: 1, c_style: 1;
+};
+
+struct Type::Array: Type
+{
+	Type* contents;
+	struct Expression* count;
+};
+
+struct Type::Function: Type
+{
+	Type* returned;
+	Type* parameters;
+	Scope* body;
+};
+
+using Template = Array <Reference>;
+
+struct Symbol: Tag
 {
 	enum Kind
 	{
 		NONE = 0,
+		UNRESOLVED,
 		
-		VARIABLE,
-		EXPRESSION,
-		FUNCTION,
-		
-		SCOPE,
-		ITERATOR,
-		
-		MARKER,
-		GOTO,
-		CASE,
-		DEFAULT,
 		INCLUDE,
-		CONTINUE,
-		BREAK,
-		RETURN,
+		VARIABLE, EXPRESSION, FUNCTION,
+		SCOPE, ITERATOR, OPERATOR,
+		MARKER, CASE, DEFAULT,
+		GOTO, CONTINUE, BREAK, RETURN,
 		
 		ALIAS,
 		MACRO /* symbol with compile parameters (analagous to templates in c++) */,
 		TEMPLATE = MACRO,
-		
-		UNRESOLVED,
 	};
 	
+	Template templates;
+	
 	fast kind = NONE;
-	Location location = {};
 	Scope* parent = 0;
 	
-	Array <Log> logs = {};
+	Array <Log> logs;
 	
 	char* comment = 0;
 	
@@ -146,10 +137,10 @@ struct Symbol
 		unsigned byte
 		is_local: 1, // hidden from outer scopes
 		is_static: 1, // only one instance of symbol
-		is_extern:	1, // allocate in parent's container, not in parent
+		is_extern: 1, // allocate in parent's container, not in parent
 		is_inline: 1; // copy definition directly into its scope
 	}
-	qualifiers = {};
+	qualifiers;
 };
 
 struct Expression: Symbol
@@ -159,12 +150,10 @@ struct Expression: Symbol
 		#include "opcode.def"
 	};
 	
-	Type type;
+	Type* type;
 	fast opcode;
 	bool constant = false;
 };
-
-using Template = Array <Reference>;
 
 struct Scope: Symbol
 {
@@ -178,38 +167,69 @@ struct Scope: Symbol
 	}
 	kind;
 	
-	Template templates;
-	
 	Array <Symbol*> members;
 	Array <fast> fields; // index into members
 	
-	std::multimap <std::string, fast>* nametable = {}; // index into members
+	std::multimap <std::string, fast>* nametable = 0; // index into members
 	
 	void insert (Symbol*);
 	
 	Symbol* find (Label path); // find in this scope or its nested scopes
 	Symbol* lookup (Label path); // find in any accessible part of the symbol table
+	
+	Scope () = default;
+	Scope (Location, Scope);
+	Scope (Location);
 };
 
 struct Iterator: Symbol
 {
-	Symbol* setup;
+	struct Loop;
+	struct Range;
+	struct Custom;
+};
+
+struct Iterator::Loop: Iterator
+{
+	Symbol* init;
 	Expression* condition;
-	Symbol* proceed;
+	Symbol* on_continue;
 	
+	Loop (Location, Symbol* init, Expression* condition, Symbol* on_continue);
+};
+
+struct Iterator::Range: Iterator
+{
+	char* name;
+	Expression* range;
+	
+	Range (Location, char* name, Expression* range);
+};
+
+struct Iterator::Custom: Iterator
+{
+	char* name;
 	Reference container;
 	
-	Iterator (Location, Symbol*, Expression*, Symbol*);
-	Iterator (Location, Reference);
+	Custom (Location, char* name, Reference);
 };
 
 struct Module: Scope
 {
-	 opt <Iterator*> iterator;
+	 opt <Iterator> iterator;
 	 
-	 enum Kind { STRUCT, MODULE, UNION };
+	 enum Form { STRUCT, MODULE, UNION };
 	 
-	 Module (Location, Kind, Scope);
+	 Module (Location, fast, char* name);
+	 Module (Location, Module);
+};
+
+struct Enum: Scope
+{
+	Enum (Location);
+	Enum (Location, Scope);
+	Enum (Location, struct Variable []);
+	Enum (Location, char* name, Scope);
 };
 
 struct Conditional: Scope
@@ -219,7 +239,8 @@ struct Conditional: Scope
 	
 	enum Selection { IF = Scope::IF, SWITCH = Scope::SWITCH, WHILE = Scope::WHILE, DO_WHILE = Scope::DO_WHILE };
 	
-	Conditional (Location, Selection, Expression*, Scope, opt <Scope> = {});
+	Conditional (Location, fast, Expression*, Scope, opt <Scope>);
+	Conditional (Location, fast, Expression*, Scope);
 };
 
 struct For: Scope
@@ -229,14 +250,18 @@ struct For: Scope
 
 struct Variable: Symbol
 {
-	Type type;
+	Type* type;
 	opt <Expression*> initializer;
 	bool variadic = false;
+	
+	Variable () = default;
+	Variable (Location, char* name, Expression* = 0);
+	Variable (Location, Variable);
 };
 
 struct Function: Symbol
 {
-	Type return_type;
+	Type* return_type;
 	Scope parameters;
 	opt <Scope*> body;
 };
@@ -275,7 +300,7 @@ struct Jump: Symbol
 	
 	Reference marker;
 	
-	Jump (Location, Destination);
+	Jump (Location, fast);
 	Jump (Location, Reference);
 };
 
@@ -314,22 +339,22 @@ struct LiteralExpression: Expression
 	LiteralExpression (Location, char*);
 };
 
-struct UnaryOperation: Expression
+struct UnaryExpression: Expression
 {
 	Expression* operand;
 	
-	UnaryOperation (Location, Opcode, Expression);
+	UnaryExpression (Location, Opcode, Expression*);
 };
 
-struct BinaryOperation: Expression
+struct BinaryExpression: Expression
 {
 	union
 	{
 		Expression* operands [2];
-		struct {Expression* left, right;};
+		struct {Expression *left, *right;};
 	};
 	
-	BinaryOperation (Location, Expression*, Opcode, Expression*);
+	BinaryExpression (Location, Expression*, Opcode, Expression*);
 };
 
 struct ListExpression: Expression

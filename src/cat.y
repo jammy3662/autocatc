@@ -22,6 +22,15 @@ using namespace CatLang;
 	#include "token.hh"
 	#include "parser.hh"
 	#include "symbol.hh"
+	
+	/*-----------------------------------------
+	| Simple interface to wrap a symbol
+	| Allows for multiple symbols in sequence
+	|_________________________________________*/
+	struct Statement: Array <CatLang::Symbol*>
+	{
+		Statement (CatLang::Symbol*);
+	};
 }
 
 %define api.prefix {cat}
@@ -113,13 +122,11 @@ using namespace CatLang;
 	
 	CatLang::Label label;
 	
-	CatLang::Statement statement;
+	Statement statement;
 	
 	CatLang::Symbol::Qualifiers qualifiers;
 	CatLang::Type::Pointer pointer;
-	CatLang::Type::Numeric::Representation type_qualifier;
 	CatLang::Type::Numeric basic_type;
-	
 	CatLang::Template templates;
 	
 	CatLang::Symbol* symbol;
@@ -127,11 +134,12 @@ using namespace CatLang;
 	
 	Array <CatLang::Symbol*> symbols;
 	Array <CatLang::Label> labels;
-	Array <CatLang::Variable*> variables;
+	Array <CatLang::Variable> variables;
 	
 	Array <CatLang::Expression*> lengths;
 	
-	CatLang::Type type;
+	CatLang::Type raw_type;
+	CatLang::Type* type;
 	CatLang::Scope scope;
 	opt <CatLang::Scope> scope_opt;
 	CatLang::Variable variable;
@@ -159,7 +167,7 @@ using namespace CatLang;
 %type <scope> enum-scope
 %type <scope> tuple
 %type <scope> parameters parameters-or-none
-%type <scope> enum-instances
+%type <scope> enum-block
 
 %type <statement> statement
 %type <symbol> line
@@ -170,7 +178,7 @@ using namespace CatLang;
 
 %type <label> label
 %type <type> type
-%type <type> datatype
+%type <raw_type> datatype
 %type <basic_type> basic-type
 %type <integer> longs
 %type <integer> long
@@ -186,8 +194,8 @@ using namespace CatLang;
 %type <token> const-value
 
 %type <qualifiers> qualifiers
-%type <type_qualifier> type-qualifiers
-%type <type_qualifier> type-qualifier
+%type <type> type-qualifiers
+%type <type> type-qualifier
 %type <variables> variables
 %type <variable> variable
 %type <variables> instances
@@ -230,9 +238,11 @@ block:
 |	block statement
 	{
 		$$ = $1;
+		auto symbols = $2;
 		
-		for (int i = 0; i <	$2.count; ++i)
-			$$.insert ($2 [i]);
+		for (int i = 0; i < symbols.count; ++i)
+			if (nonzero symbols [i])
+				$$.insert (symbols [i]);
 	}
 
 statement:
@@ -331,13 +341,10 @@ statement:
 		$$ = new For ($1.location, $2, $3);
 	}
 	
-|	ITERATOR iterator
-	{
-		$$ = $2;
-	}
+|	ITERATOR iterator { $$ = $2; }
 	
-| module
-|	line
+| module { $$ = $1; }
+|	line { $$ = $1; }
 
 semicolon:
 	%empty %prec EMPTY { $$ = current.token; }
@@ -388,13 +395,13 @@ range-expression:
 	
 	expression TAIL expression
 	{
-		$$ = new BinaryOperation
+		$$ = new BinaryExpression
 		($1->location, $1, Expression::RANGE, $3);
 	}
 
 else-block:
 	%empty { $$.valid = false; }
-|	ELSE scope { $$ = $2; }
+|	ELSE scope { $$ = Scope ($1.location, $2); }
 
 iterator:
 
@@ -407,91 +414,53 @@ c-iterator:
 	
 	line ';' expression ';' line
 	{
-		$$ = new Iterator ($1->location, $1, $3, $5);
+		$$ = new Iterator::Loop ($1->location, $1, $3, $5);
 	}
 
 range-iterator:
 	
 	NAME ':' range-expression
 	{
-		Symbol* setup = new Symbol;
-		setup->kind = Symbol::VARIABLE;
-		setup->location = $1.location;
-		setup->variable.name = $1.text;
-		setup->variable.initializer = $3.operands [0]; 
-		
-		Symbol* proceed = new Symbol;
-		proceed->kind = Symbol::EXPRESSION;
-		proceed->location = $1.location;
-		
-		Expression* counter = Expression;
-		counter->opcode = Expression::VARIABLE;
-		counter->variable.ptr = setup;
-		
-		Expression* increment = Expression;
-		increment->opcode = Expression::PRE_INCREMENT;
-		increment->operand = counter;
-		
-		Expression* condition = Expression;
-		condition->opcode = Expression::AT_MOST;
-		condition->operands [0] = counter;
-		condition->operands [1] = $3.operands [1];
-		
-		$$ = new Iterator (setup, condition, proceed);
+		$$ = new Iterator::Range ($1.location, $1.text, $3);
 	}
 
 type-iterator:
 	
 	NAME ':' expression
 	{
-		$$ = new Iterator ((Symbol*) $3);
+		$$ = new Iterator::Custom ($1.location, $1.text, $3);
 	}
 
 line:
 	
 	braced-scope
 	{
-		$$ = new <Symbol>();
-		$$->kind = Symbol::SCOPE;
-		$$->location = $1.location;
-		
-		$$->scope = $1;
-		$$->scope.kind = Scope::STACK;
+		$$ = new Scope ($1);
 	}
 	
 |	qualifiers variables semicolon
 	{
-		// because multiple variables are in one statement,
-		// create a "list statement" to ensure all variables are inserted into their scope
-		$$ = new <Symbol> ();
-		$$->kind = Symbol::VARIABLE_LIST;
-		$$->location = $2.front()->location;
+		auto variables = $2;
+		$$ = variables.ptr;
 		
-		$$->is_local = $1.is_local;
-		$$->is_static = $1.is_static;
-		$$->is_extern = $1.is_extern;
-		$$->is_inline = $1.is_inline;
-		
-		$$->variable_list = *$2; free ($2);
+		for (int i = 0; i < variables.count; ++i)
+		{
+			$$ [i].qualifiers = $1;
+		}
 	}
 	
 |	template qualifiers function
 	{
-		$$ = new <Symbol> ();
-		$$->kind = Symbol::FUNCTION;
-		$$->location = $2->location;
+		auto function = $3;
+		function.qualifiers = $2;
+		function.templates = $1;
 		
-		$$->function = *$2; free ($2);
+		$$ = new Function (function);
 	}
 	
 |	expressions semicolon
 	{
-		$$ = new <Symbol> ();
-		$$->kind = Symbol::EXPRESSION;
-		$$->location = $1->location;
-		
-		memcpy (& $$->expression, $1, sizeof (Expression));
-		free ($1);
+		$$ = $1;
 	}
 	
 |	';' { $$ = 0; } // empty statement, dont create a symbol for this
@@ -499,78 +468,69 @@ line:
 scope:
 
 	braced-scope
-|	colon block ELLIPSES { $$ = $2; $$->location = $1->location; }
-|	';'                  { $$ = new <Scope> (); $$->location = $1->location; }
-
-braced-scope:
-	'{' block '}' { $$ = $2; $$->location = $1->location; }
-
-enum-scope:
-	'{' enum-instances '}' { $$ = $2; }
-|	colon enum-instances ELLIPSES { $$ = $2; }
+	
+|	colon block ELLIPSES
+	{
+		$$ = Scope ($1.location, $2);
+	}
 |	';'
 	{
-		$$ = new <Scope> ();
-		$$->kind = Scope::ENUM;
-		$$->location = $1->location;
+		$$ = Scope ($1.location);
 	}
 
-enum-instances:
+braced-scope:
+	
+	'{' block '}'
+	{
+		$$ = Scope ($1.location, $2);
+	}
+
+enum-scope:
+	
+	'{' enum-block '}'
+	{ $$ = Enum ($1.location, $2); }
+	
+|	colon enum-block ELLIPSES
+	{ $$ = Enum ($1.location, $2); }
+	
+|	';'
+	{ $$ = Enum ($1.location); }
+
+enum-block:
+	
 	%empty
 	{
-		$$ = new <Scope> ();
-		$$->kind = Scope::ENUM;
-		$$->location = current.location;
+		$$ = Enum (current.location);
 	}
 	
 |	instances
 	{
-		$$ = new <Scope> ();
-		$$->kind = Scope::ENUM;
-		$$->location = $1->front()->location;
-		
-		Symbol* list = new <Symbol> ();
-		list->kind = Symbol::VARIABLE_LIST;
-		list->location = $1->front()->location;
-		
-		$$->insert (list);
+		$$ = Enum ($1[0].location, $1.ptr);
 	}
 
 module:
+	
 	qualifiers struct-module-union label scope
 	{
-		$$ = new <Symbol> ();
-		$$->kind = Symbol::SCOPE;
-		$$->location = $2->location;
-		
-		$$->scope = *$4; free ($4);
-		
-		$$->scope.name = $3->names.back();
-		$$->scope.kind = $2->integer;
+		$$ = new Module ($2.location, (Module::Form) $2.integer, $3.names.back());
+		$$->qualifiers = $1;
 		
 		// TODO: find target scope using path label
 	}
 	
 |	qualifiers ENUM label enum-scope
 	{
-		$$ = new <Symbol> ();
-		$$->kind = Symbol::SCOPE;
-		$$->location = $2->location;
-		
-		$$->scope = *$4; free ($4);
-		
-		
-		$$->scope.name = $3->names.back();
-		$$->scope.kind = Scope::ENUM;
+		$$ = new Enum ($2.location, $3.names.back(), $4);
+		$$->qualifiers = $1;
 		
 		// TODO: find target scope using path label
 	}
 
 struct-module-union:
 
-	STRUCT { $$->integer = Scope::STRUCT; }
-|	MODULE { $$->integer = Scope::MODULE; }
-|	UNION { $$->integer = Scope::UNION; }
+	STRUCT { $$ = $1; $$.integer = Module::STRUCT; }
+|	MODULE { $$ = $1; $$.integer = Module::MODULE; }
+|	UNION { $$ = $1; $$.integer = Module::UNION; }
 
 qualifiers:
 	%empty %prec EMPTY { $$ = {false, false, false, false}; }
@@ -584,18 +544,7 @@ variable:
 	type instance
 	{
 		$$ = $2;
-		
-		Type* type = & $2->type;
-		
-		while (type->data is Type::ARRAY or type->data is Type::POINTER)
-		{
-			if (type->data is Type::ARRAY)
-				type = type->array.contents;
-			else
-				type = type->pointer.pointee;
-		}
-		
-		*type = *$1; free ($1);
+		$$.type = $1;
 	}
 
 variables:
@@ -752,15 +701,25 @@ type:
 	}
 
 type-qualifiers:
-	%empty { $$ = Type::Numeric::Representation::SIGNED; }
-|	type-qualifiers type-qualifier { $$ = $2; }
+	
+	%empty { $$ = {}; }
+	
+|	type-qualifiers type-qualifier
+	{
+		if ($1.constness)
+			$$.constness = true;
+		
+		if ($1.representation isnt Type::DEFAULT)
+			$$.representation = $1.representation;
+	}
 
 type-qualifier:
 
-	SIGNED    { $$ = Type::Numeric::Representation::SIGNED; }
-|	UNSIGNED  { $$ = Type::Numeric::Representation::UNSIGNED; }
-|	COMPLEX   { $$ = Type::Numeric::Representation::COMPLEX; }
-|	IMAGINARY { $$ = Type::Numeric::Representation::IMAGINARY; }
+	CONST     { $$.representation = Type::DEFAULT; $$.constness = true; }
+|	SIGNED    { $$.representation = Type::SIGNED; $$.constness = false; }
+|	UNSIGNED  { $$.representation = Type::UNSIGNED; $$.constness = false; }
+|	COMPLEX   { $$.representation = Type::COMPLEX; $$.constness = false; }
+|	IMAGINARY { $$.representation = Type::IMAGINARY; $$.constness = false; }
 
 indirection:
 	
@@ -774,6 +733,7 @@ indirection:
 pointer:
 	'~' const { $$.constness = $2; $$.c_style = false; }
 |	'*' const { $$.constness = $2; $$.c_style = true; }
+| '@' const { $$.constness = true; $$.c_style = false; }
 
 const:
 	%empty { $$ = false; }

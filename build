@@ -1,11 +1,9 @@
 #!/bin/bash
 
-export FORCE_COLOR=1
-
 CLANG_FLAGS="\
 -Wno-deprecated -Wunneeded-internal-declaration \
 -g3 \
--fno-caret-diagnostics"
+-fno-caret-diagnostics -ferror-limit=999"
 
 mkdir -p generated
 cd generated
@@ -21,10 +19,14 @@ flex --nounput $SRC/cat.l && \
 
 cd ..
 
+#echo "\
+unbuffer \
 clang++ $CLANG_FLAGS \
 	-I src -I generated \
 	generated/lex.cat.c \
 	generated/cat.tab.c \
 	src/*.cc \
 	-o autocatc \
-	2>&1 | grep -v 'In file included from'
+	2>&1 \
+	| grep -v 'In file included'
+#"
