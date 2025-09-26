@@ -2,7 +2,7 @@
 #define SYMBOL_DOT_H
 
 #include <sstream>
-#include <map>
+#include <unordered_map>
 
 #include "token.hh"
 #include "log.hh"
@@ -155,6 +155,8 @@ struct Expression: Symbol
 	bool constant = false;
 };
 
+struct Iterator;
+
 struct Scope: Symbol
 {
 	enum Kind
@@ -167,10 +169,20 @@ struct Scope: Symbol
 	}
 	kind;
 	
-	Array <Symbol*> members;
-	Array <fast> fields; // index into members
+	Array <Symbol*>
+	members;
+	Array <fast>
+	fields; // index into members
 	
-	std::multimap <std::string, fast>* nametable = 0; // index into members
+	std::unordered_multimap <std::string, fast>*
+	nametable = 0; // index into members by name
+	
+	// for a given scope, there can only be one definition per operator/opcode
+	std::unordered_map <fast, Symbol*>*
+	operators;
+	
+	Iterator*
+	iterator;
 	
 	void insert (Symbol*);
 	
@@ -181,6 +193,7 @@ struct Scope: Symbol
 	Scope (Location, Scope);
 	Scope (Location);
 };
+
 
 struct Iterator: Symbol
 {
@@ -216,8 +229,6 @@ struct Iterator::Custom: Iterator
 
 struct Module: Scope
 {
-	 opt <Iterator> iterator;
-	 
 	 enum Form { STRUCT, MODULE, UNION };
 	 
 	 Module (Location, fast, char* name);
@@ -235,9 +246,7 @@ struct Enum: Scope
 struct Conditional: Scope
 {
 	Expression* condition;
-	opt <Scope*> otherwise;
-	
-	enum Selection { IF = Scope::IF, SWITCH = Scope::SWITCH, WHILE = Scope::WHILE, DO_WHILE = Scope::DO_WHILE };
+	opt <Scope> otherwise;
 	
 	Conditional (Location, fast, Expression*, Scope, opt <Scope>);
 	Conditional (Location, fast, Expression*, Scope);
@@ -248,11 +257,15 @@ struct For: Scope
 	For (Location, Iterator*, Scope);
 };
 
-struct Variable: Symbol
+struct Instance
 {
-	Type* type;
 	opt <Expression*> initializer;
 	bool variadic = false;
+};
+
+struct Variable: Symbol, Instance
+{
+	Type* type;
 	
 	Variable () = default;
 	Variable (Location, char* name, Expression* = 0);
@@ -321,10 +334,18 @@ struct MetaExpression: Expression
 	Expression* expression;
 };
 
+struct PairExpression: Expression
+{
+	PairExpression (Location, Expression*, Expression*);
+};
+
 struct CallExpression: Expression
 {
 	Reference function;
 	opt <Expression*> arguments;
+	
+	
+	CallExpression (Location, Reference, Expression*);
 };
 
 struct ReferenceExpression: Expression, Reference
@@ -360,6 +381,8 @@ struct BinaryExpression: Expression
 struct ListExpression: Expression
 {
 	Array <Expression*> expressions;
+	
+	ListExpression (Location);
 };
 
 }

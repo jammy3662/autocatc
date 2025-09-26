@@ -12,6 +12,9 @@ int yywrap ();
 
 using namespace CatLang;
 
+Array <Scope> scope_stack;
+#define current_scope scope_stack.last()
+
 %}
 
 /* Declarations (Bison) */
@@ -20,17 +23,7 @@ using namespace CatLang;
 {
 	#include "log.hh"
 	#include "token.hh"
-	#include "parser.hh"
 	#include "symbol.hh"
-	
-	/*-----------------------------------------
-	| Simple interface to wrap a symbol
-	| Allows for multiple symbols in sequence
-	|_________________________________________*/
-	struct Statement: Array <CatLang::Symbol*>
-	{
-		Statement (CatLang::Symbol*);
-	};
 }
 
 %define api.prefix {cat}
@@ -122,8 +115,6 @@ using namespace CatLang;
 	
 	CatLang::Label label;
 	
-	Statement statement;
-	
 	CatLang::Symbol::Qualifiers qualifiers;
 	CatLang::Type::Pointer pointer;
 	CatLang::Type::Numeric basic_type;
@@ -141,6 +132,7 @@ using namespace CatLang;
 	CatLang::Type raw_type;
 	CatLang::Type* type;
 	CatLang::Scope scope;
+	CatLang::Scope* scope_ptr;
 	opt <CatLang::Scope> scope_opt;
 	CatLang::Variable variable;
 	CatLang::Function function;
@@ -161,15 +153,13 @@ using namespace CatLang;
 	CATSTYPE () {}
 }
 
-%type <scope> block
-%type <scope> scope
-%type <scope> braced-scope
+%type <scope> block scope braced-scope
 %type <scope> enum-scope
 %type <scope> tuple
 %type <scope> parameters parameters-or-none
 %type <scope> enum-block
 
-%type <statement> statement
+%type <symbol> statement
 %type <symbol> line
 %type <symbol> module
 
@@ -183,12 +173,8 @@ using namespace CatLang;
 %type <integer> longs
 %type <integer> long
 
-%type <expression> expression
+%type <expression> expression atomic
 %type <expression> initializer
-%type <expression> expressions
-%type <expression> arguments
-%type <expression> argument
-%type <expression> list-expression
 %type <expression> value
 %type <expression> meta-value
 %type <token> const-value
@@ -233,16 +219,15 @@ using namespace CatLang;
 
 block:
 
-	%empty { $$ = {}; }
+	%empty
+	{
+		$$ = {};
+		scope_stack.append ($$);
+	}
 	
 |	block statement
 	{
-		$$ = $1;
-		auto symbols = $2;
-		
-		for (int i = 0; i < symbols.count; ++i)
-			if (nonzero symbols [i])
-				$$.insert (symbols [i]);
+		$$ = scope_stack.last();
 	}
 
 statement:
@@ -257,94 +242,133 @@ statement:
 	
 | ALIAS label '=' label semicolon
 	{
-		char* name = $2.names.back();
+		char* name = $2.names.last();
 		// TODO: handle nested names (a.b.name)
 		
 		$$ = new Alias ($1.location, name, $4);
+		current_scope.insert ($$);
 	}
 	
 |	label ':'
 	{
-		char* name = $1.names.back();
+		char* name = $1.names.last();
 		// TODO: handle nested names (a.b.name)
 		
 		$$ = new Marker ($1.location, name);
+		current_scope.insert ($$);
 	}
 	
 |	CASE case-expression colon
 	{
 		$$ = new Case ($1.location, $2);
+		current_scope.insert ($$);
 	}
 	
 |	DEFAULT colon
 	{
 		$$ = new Case ($1.location);
+		current_scope.insert ($$);
 	}
 	
 |	INCLUDE label semicolon
 	{
-		$$ = new Include ($1.location, $2); 
+		$$ = new Include ($1.location, $2);
+		current_scope.insert ($$); 
 	}
 	
 |	CONTINUE semicolon
 	{
 		$$ = new Jump ($1.location, Jump::CONTINUE);
+		current_scope.insert ($$);
 	}
 	
 |	BREAK semicolon
 	{
 		$$ = new Jump ($1.location, Jump::BREAK);
+		current_scope.insert ($$);
 	}
 	
 |	GOTO label semicolon
 	{
 		$$ = new Jump ($1.location, $2);
+		current_scope.insert ($$);
 	}
 	
 |	RETURN expression semicolon %prec ATOMIC
 	{
 		$$ = new Return ($1.location, $2);
+		current_scope.insert ($$);
 	}
 	
 |	RETURN semicolon
 	{
 		$$ = new Return ($1.location);
+		current_scope.insert ($$);
 	}
 	
 |	IF expression scope else-block
 	{
 		$$ = new Conditional ($1.location, Conditional::IF, $2, $3, $4);
+		current_scope.insert ($$);
 	}
 	
 |	SWITCH expression scope
 	{
 		$$ = new Conditional ($1.location, Conditional::SWITCH, $2, $3);
+		current_scope.insert ($$);
 	}
 	
 |	WHILE expression scope
 	{
 		$$ = new Conditional ($1.location, Conditional::WHILE, $2, $3);
+		current_scope.insert ($$);
 	}
 	
 |	DO WHILE expression scope
 	{
 		$$ = new Conditional ($1.location, Conditional::DO_WHILE, $3, $4);
+		current_scope.insert ($$);
 	}
 	
 |	DO scope WHILE expression semicolon
 	{
 		$$ = new Conditional ($1.location, Conditional::DO_WHILE, $4, $2);
+		current_scope.insert ($$);
 	}
 	
 |	FOR iterator scope
 	{
 		$$ = new For ($1.location, $2, $3);
+		current_scope.insert ($$);
 	}
 	
-|	ITERATOR iterator { $$ = $2; }
+|	ITERATOR iterator
+	{
+		$$ = $2;
+		current_scope.insert ($$);
+	}
 	
-| module { $$ = $1; }
-|	line { $$ = $1; }
+|	template qualifiers function
+	{
+		auto function = $3;
+		function.qualifiers = $2;
+		function.templates = $1;
+		
+		$$ = new Function (function);
+		current_scope.insert ($$);
+	}
+	
+| template module
+	{
+		$$ = $1;
+		current_scope.insert ($$);
+	}
+	
+|	line
+	{
+		$$ = $1;
+		current_scope.insert ($$);
+	}
 
 semicolon:
 	%empty %prec EMPTY { $$ = current.token; }
@@ -433,32 +457,27 @@ type-iterator:
 
 line:
 	
-	braced-scope
+	qualifiers braced-scope
 	{
-		$$ = new Scope ($1);
+		$$ = new Scope ($2);
+		$$->qualifiers = $1;
 	}
 	
 |	qualifiers variables semicolon
 	{
+		$$ = {};
+		
 		auto variables = $2;
-		$$ = variables.ptr;
 		
 		for (int i = 0; i < variables.count; ++i)
 		{
-			$$ [i].qualifiers = $1;
+			auto variable = new Variable (variables [i]);
+			variable->qualifiers = $1;
+			$$.append (variable);
 		}
 	}
 	
-|	template qualifiers function
-	{
-		auto function = $3;
-		function.qualifiers = $2;
-		function.templates = $1;
-		
-		$$ = new Function (function);
-	}
-	
-|	expressions semicolon
+|	expression semicolon
 	{
 		$$ = $1;
 	}
@@ -512,7 +531,7 @@ module:
 	
 	qualifiers struct-module-union label scope
 	{
-		$$ = new Module ($2.location, (Module::Form) $2.integer, $3.names.back());
+		$$ = new Module ($2.location, (Module::Form) $2.integer, $3.names.last());
 		$$->qualifiers = $1;
 		
 		// TODO: find target scope using path label
@@ -520,7 +539,7 @@ module:
 	
 |	qualifiers ENUM label enum-scope
 	{
-		$$ = new Enum ($2.location, $3.names.back(), $4);
+		$$ = new Enum ($2.location, $3.names.last(), $4);
 		$$->qualifiers = $1;
 		
 		// TODO: find target scope using path label
@@ -552,20 +571,20 @@ variables:
 	type instances
 	{
 		$$ = $2;
+		auto instances = $2;
 		
-		for (auto instance: *$2)
+		/*
+		 | To avoid an extraneous symbol type for
+		 | multi-variable declarations, pass the
+		 | first variable's pointer to 
+		*/
+		Variable terminator;
+		terminator.kind = Symbol::NONE;
+		instances.append (terminator);
+		
+		for (int i = 0: instances.count; ++i)
 		{
-			Type* type = & instance->type;
-			
-			while (type->data is Type::ARRAY or type->data is Type::POINTER)
-			{
-				if (type->data is Type::ARRAY)
-					type = type->array.contents;
-				else
-					type = type->pointer.pointee;
-			}
-			
-			*type = *$1; free ($1);
+			instances [i].type = $1;
 		}
 	}
 
@@ -573,8 +592,8 @@ instances:
 	
 	instance
 	{
-		$$ = new <Array <Variable*>> ();
-		$$->append ($1);
+		$$ = {};
+		$$.append ($1);
 	}
 	
 |	instances ',' instance
@@ -588,7 +607,7 @@ instance:
 	label lengths initializer
 	{
 		$$ = new <Variable> ();
-		$$->name = $1->names.back();
+		$$->name = $1->names.last();
 		$$->location = $1->location;
 		$$->initializer = $3;
 		$$->is_variadic = false;
@@ -610,7 +629,7 @@ instance:
 |	label lengths TAIL
 	{
 		$$ = new <Variable> ();
-		$$->name = $1->names.back();
+		$$->name = $1->names.last();
 		$$->location = $1->location;
 		$$->initializer = 0;
 		$$->is_variadic = true;
@@ -648,7 +667,7 @@ function:
 	{
 		$$ = new <Function> ();
 		
-		$$->name = $2->names.back();
+		$$->name = $2->names.last();
 		$$->parameters = $3;
 		$$->body = $4;
 	}
@@ -797,42 +816,9 @@ int:
 	%empty
 |	INT
 
-expressions:
-
-	expression %prec ','
-|	expressions ',' expression
-	{
-		$$ = new <Expression> ();
-		$$->opcode = Expression::COMMA;
-		$$->location = $1->location;
-		
-		$$->operands [0] = $1;
-		$$->operands [1] = $3;
-	}
-
-list-expression:
-
-	expression %prec ','
-	{
-		$$ = new <Expression> ();
-		$$->opcode = Expression::LIST;
-		$$->location = $1->location;
-		
-		$$->list.append ($1);
-	}
-	
-|	list-expression ',' expression
-	{
-		$$ = $1;
-		$$->list.append ($3);
-	}
-	
-
 expression:
-
-	'(' expressions ')' { $$ = $2; }
-|	'[' list-expression ']' { $$ = $2; }
-|	value
+	
+	atomic
 	
 |	prefix-operator expression %prec PREFIX
 	{
@@ -841,15 +827,6 @@ expression:
 		$$->location = $1->location;
 		
 		$$->operand = $2;
-	}
-	
-|	expression postfix-operator %prec POSTFIX
-	{
-		$$ = new <Expression> ();
-		$$->opcode = $2->integer;
-		$$->location = $1->location;
-		
-		$$->operand = $1;
 	}
 	
 |	expression infix-operator expression %prec INFIX
@@ -862,54 +839,46 @@ expression:
 		$$->operands [1] = $3;
 	}
 	
-|	label arguments %prec ATOMIC
+|	expression postfix-operator %prec POSTFIX
 	{
-		// TODO: function call OR type cast
+		$$ = new <Expression> ();
+		$$->opcode = $2->integer;
+		$$->location = $1->location;
+		
+		$$->operand = $1;
+	}
+	
+|	expression ',' expression %prec ','
+	{
+		if ($$->opcode is Expression::LIST)
+		{
+			$$ = $1;
+			$$->expressions.append ($2);
+		}
+		
+		else
+		{
+			$$ = new ListExpression ($1->location); 
+			$$->expressions.append ($1);
+			$$->expressions.append ($3);
+		}
+		
+	}
+	
+|	expression atomic %prec ATOMIC
+	{
+		// TODO: function call OR multiplication
 		// note that function calls with empty arguments are matched by the variable access expression
 		
-		$$ = new <Expression> ();
-		$$->opcode = Expression::CALL;
-		$$->location = $1->location;
-		
-		$$->call.function.path = *$1; free ($1);
-		$$->call.arguments = $2;
+		$$ = new PairExpression
+		($1->location, $1, $2);
 	}
 
-arguments:
-	
-	argument %prec ','
-	{
-		$$ = new <Expression> ();
-		$$->opcode = Expression::LIST;
-		$$->location = $1->location;
-		
-		$$->list.append ($1);
-	}
-	
-|	arguments ',' argument
-	{
-		$$ = $1;
-		$$->list.append ($3);
-	}
+atomic:
 
-argument:
-	
-	label ':' expression %prec ':'
-	{
-		$$ = new <Expression> ();
-		$$->opcode = Expression::ASSIGN;
-		$$->location = $1->location;
-		
-		Expression* reference = new <Expression> ();
-		reference->opcode = Expression::VARIABLE;
-		reference->location = $1->location;
-		reference->variable.path = *$1; free ($1);
-		
-		$$->operands [0] = reference;
-		$$->operands [1] = $3;
-	}
-	
-|	expression %prec EMPTY
+	'(' expression ')' { $$ = $2; }
+|	'[' expression ']' { $$ = $2; }
+|	value
 
 value:
 	
@@ -996,6 +965,7 @@ infix-operator:
 |	arithmetic
 |	arithmetic '=' { $$ = $1; $1->integer += Expression::ASSIGN; }
 |	'=' { $$ = $1; $1->integer = Expression::ASSIGN; }
+|	','
 
 arithmetic:
 

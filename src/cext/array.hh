@@ -16,11 +16,13 @@ struct Array
 	fast shrink (); // deallocate all unused elements (returns # unused elements)
 	void clear (); // deallocate all memory
 	
+	T pop (); // remove last element
+	
 	T& operator [] (fast idx) const {return ptr[idx];};
 	operator T* () const {return ptr;}
 	
-	T& front () const;
-	T& back () const;
+	T& first () const;
+	T& last () const;
 };
 
 #include "array.cc.hh"

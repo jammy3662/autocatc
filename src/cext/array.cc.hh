@@ -83,15 +83,22 @@ void Array<T>::clear ()
 }
 
 template <typename T>
-T& Array<T>::front () const
+T& Array<T>::first () const
 {
 	return ptr [0];
 }
 
 template <typename T>
-T& Array<T>::back () const
+T& Array<T>::last () const
 {
 	return ptr [count-1];
+}
+
+template <typename T>
+T Array<T>::pop ()
+{
+	count--;
+	return ptr [count];
 }
 
 #endif

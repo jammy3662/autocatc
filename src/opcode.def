@@ -12,6 +12,11 @@ LIST, // [] sequential expressions in an array
 RANGE, // 1..9 numbers within a range (inclusive)
 CAST, // int 4.0 cast value to type
 
+PAIR,
+// 2n
+// add (1,2)
+// "Hello World!" "\n" 
+
 POST_INCREMENT /* ++ */,
 POST_DECREMENT /* -- */,
 CALL /* () */,
