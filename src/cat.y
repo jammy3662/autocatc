@@ -15,6 +15,8 @@ using namespace CatLang;
 Array <Scope> scope_stack;
 #define current_scope scope_stack.last()
 
+Location location_buffer;
+
 %}
 
 /* Declarations (Bison) */
@@ -66,7 +68,7 @@ Array <Scope> scope_stack;
 
 %token <token>  ALIAS TEMPLATE ITERATOR OPERATOR
 %token <token>  INCLUDE INLINE
-%token <token>  SIZEOF COUNTOF NAMEOF TYPEOF
+%token <token>  SIZEOF COUNTOF NAMEOF TYPEOF STRINGOF
 %token <token>  LOCAL STATIC	CONST EXTERN
 %token <token>  SIGNED	UNSIGNED COMPLEX IMAGINARY LONG DOUBLE
 %token <token>  BREAK CONTINUE RETURN GOTO
@@ -98,14 +100,19 @@ Array <Scope> scope_stack;
 %left '*' '/' '%'
 %left INFIX
 
+%left PAIR
+
 %right PREFIX
 %right '(' '{' '[' '!' '~' ':' WHILE
 
 %left POSTFIX
 %left ')' ']' INCREMENT DECREMENT
 
+%right META
+
+%nonassoc LOCAL STATIC EXTERN INLINE
 %nonassoc CONST_INT CONST_FLOAT CONST_STRING CONST_CHAR
-%nonassoc SIZEOF COUNTOF NAMEOF
+%nonassoc SIZEOF COUNTOF NAMEOF STRINGOF
 %nonassoc NAME
 %nonassoc ATOMIC
 
@@ -116,7 +123,7 @@ Array <Scope> scope_stack;
 	CatLang::Label label;
 	
 	CatLang::Symbol::Qualifiers qualifiers;
-	CatLang::Type::Pointer pointer;
+	CatLang::Type::Pointer::Indirection pointer;
 	CatLang::Type::Numeric basic_type;
 	CatLang::Template templates;
 	
@@ -127,7 +134,7 @@ Array <Scope> scope_stack;
 	Array <CatLang::Label> labels;
 	Array <CatLang::Variable> variables;
 	
-	Array <CatLang::Expression*> lengths;
+	Array <CatLang::Expression*> dimensionality;
 	
 	CatLang::Type raw_type;
 	CatLang::Type* type;
@@ -139,12 +146,7 @@ Array <Scope> scope_stack;
 	CatLang::Expression* expression;
 	CatLang::Expression range [2];
 	
-	struct
-	{
-		int count;
-		struct { byte c_style: 1, constant: 1; }
-		pointers [32];
-	}
+	Array <CatLang::Type::Indirection>
 	indirection;
 	
 	bool boolean;
@@ -156,7 +158,7 @@ Array <Scope> scope_stack;
 %type <scope> block scope braced-scope
 %type <scope> enum-scope
 %type <scope> tuple
-%type <scope> parameters parameters-or-none
+%type <scope> parameters
 %type <scope> enum-block
 
 %type <symbol> statement
@@ -165,6 +167,8 @@ Array <Scope> scope_stack;
 
 %type <templates> template
 %type <templates> template-parameters
+
+%type <token>	definable-operator
 
 %type <label> label
 %type <type> type
@@ -176,8 +180,7 @@ Array <Scope> scope_stack;
 %type <expression> expression atomic
 %type <expression> initializer
 %type <expression> value
-%type <expression> meta-value
-%type <token> const-value
+%type <token> literal meta
 
 %type <qualifiers> qualifiers
 %type <type> type-qualifiers
@@ -185,7 +188,7 @@ Array <Scope> scope_stack;
 %type <variables> variables
 %type <variable> variable
 %type <variables> instances
-%type <variable> instance
+%type <variable> instance counted-instance
 %type <function> function
 
 %type <expression> case-expression
@@ -193,8 +196,7 @@ Array <Scope> scope_stack;
 %type <scope_opt> else-block
 %type <token>	struct-module-union
 
-%type <lengths> lengths
-%type <expression> length
+%type <dimensionality> dimensionality
 %type <pointer> pointer
 %type <indirection> indirection
 
@@ -204,10 +206,7 @@ Array <Scope> scope_stack;
 
 %type <boolean> const
 
-%type <iterator> c-iterator
-%type <iterator> range-iterator
-%type <iterator> type-iterator
-%type <iterator> iterator
+%type <iterator> iterator c-iterator iterator-define
 
 %type <token> semicolon colon
 
@@ -229,6 +228,7 @@ block:
 	{
 		$$ = scope_stack.last();
 	}
+
 
 statement:
 
@@ -342,10 +342,15 @@ statement:
 		current_scope.insert ($$);
 	}
 	
-|	ITERATOR iterator
+|	ITERATOR iterator-define
 	{
 		$$ = $2;
 		current_scope.insert ($$);
+	}
+	
+|	OPERATOR definable-operator tuple scope
+	{
+		
 	}
 	
 |	template qualifiers function
@@ -354,13 +359,7 @@ statement:
 		function.qualifiers = $2;
 		function.templates = $1;
 		
-		$$ = new Function (function);
-		current_scope.insert ($$);
-	}
-	
-| template module
-	{
-		$$ = $1;
+		$$ = new Function (location_buffer, function);
 		current_scope.insert ($$);
 	}
 	
@@ -369,91 +368,13 @@ statement:
 		$$ = $1;
 		current_scope.insert ($$);
 	}
-
-semicolon:
-	%empty %prec EMPTY { $$ = current.token; }
-|	';'
-
-colon:
-	%empty %prec EMPTY { $$ = current.token; }
-|	':'
-
-template:
 	
-	'[' template-parameters ']' { $$ = $2; }
-
-template-parameters:
-	
-	%empty %prec EMPTY
-	{
-		$$ = {};
-	}
-	
-|	template-parameters label
+| template module
 	{
 		$$ = $1;
-		$$.append ($2);
+		current_scope.insert ($$);
 	}
 
-label:
-	
-	NAME
-	{
-		$$.location = $1.location;
-		$$.names = {};
-		$$.names.append ($1.text);
-	}
-	
-|	label '.' NAME
-	{
-		$$ = $1;
-		$$.names.append ($3.text);
-	}
-
-case-expression:
-	
-	expression %prec EMPTY
-|	range-expression %prec TAIL
-
-range-expression:
-	
-	expression TAIL expression
-	{
-		$$ = new BinaryExpression
-		($1->location, $1, Expression::RANGE, $3);
-	}
-
-else-block:
-	%empty { $$.valid = false; }
-|	ELSE scope { $$ = Scope ($1.location, $2); }
-
-iterator:
-
-	'(' iterator ')' { $$ = $2; }
-|	c-iterator
-|	range-iterator
-|	type-iterator
-
-c-iterator:
-	
-	line ';' expression ';' line
-	{
-		$$ = new Iterator::Loop ($1->location, $1, $3, $5);
-	}
-
-range-iterator:
-	
-	NAME ':' range-expression
-	{
-		$$ = new Iterator::Range ($1.location, $1.text, $3);
-	}
-
-type-iterator:
-	
-	NAME ':' expression
-	{
-		$$ = new Iterator::Custom ($1.location, $1.text, $3);
-	}
 
 line:
 	
@@ -473,59 +394,14 @@ line:
 		{
 			auto variable = new Variable (variables [i]);
 			variable->qualifiers = $1;
-			$$.append (variable);
+			current_scope.insert (variable);
 		}
 	}
 	
-|	expression semicolon
-	{
-		$$ = $1;
-	}
+|	expression semicolon { $$ = $1; }
 	
 |	';' { $$ = 0; } // empty statement, dont create a symbol for this
 
-scope:
-
-	braced-scope
-	
-|	colon block ELLIPSES
-	{
-		$$ = Scope ($1.location, $2);
-	}
-|	';'
-	{
-		$$ = Scope ($1.location);
-	}
-
-braced-scope:
-	
-	'{' block '}'
-	{
-		$$ = Scope ($1.location, $2);
-	}
-
-enum-scope:
-	
-	'{' enum-block '}'
-	{ $$ = Enum ($1.location, $2); }
-	
-|	colon enum-block ELLIPSES
-	{ $$ = Enum ($1.location, $2); }
-	
-|	';'
-	{ $$ = Enum ($1.location); }
-
-enum-block:
-	
-	%empty
-	{
-		$$ = Enum (current.location);
-	}
-	
-|	instances
-	{
-		$$ = Enum ($1[0].location, $1.ptr);
-	}
 
 module:
 	
@@ -545,18 +421,103 @@ module:
 		// TODO: find target scope using path label
 	}
 
-struct-module-union:
 
-	STRUCT { $$ = $1; $$.integer = Module::STRUCT; }
-|	MODULE { $$ = $1; $$.integer = Module::MODULE; }
-|	UNION { $$ = $1; $$.integer = Module::UNION; }
+scope:
 
-qualifiers:
-	%empty %prec EMPTY { $$ = {false, false, false, false}; }
-|	qualifiers LOCAL  { $$.is_local = true; }
-|	qualifiers STATIC { $$.is_static = true; }
-|	qualifiers EXTERN { $$.is_extern = true; }
-|	qualifiers INLINE { $$.is_inline = true; }
+	colon block ELLIPSES { $$ = Scope ($1.location, $2); }
+|	';' { $$ = Scope ($1.location); }
+|	braced-scope
+
+
+braced-scope:
+	
+	'{' block '}' { $$ = Scope ($1.location, $2); }
+
+
+enum-scope:
+	
+	'{' enum-block '}' { $$ = Enum ($1.location, $2); }
+|	colon enum-block ELLIPSES { $$ = Enum ($1.location, $2); }
+|	';' { $$ = Enum ($1.location); }
+
+
+enum-block:
+	
+	%empty { $$ = Enum (current.location); }
+|	instances { $$ = Enum ($1); }
+
+
+template:
+	
+	TEMPLATE '<' template-parameters '>' { $$ = $2; location_buffer = $1.location; }
+
+
+template-parameters:
+	
+	%empty %prec EMPTY { $$ = {}; }
+	
+|	template-parameters label
+	{
+		$$ = $1;
+		$$.append ($2);
+	}
+
+
+iterator:
+
+	'(' iterator ')' { $$ = $2; }
+	
+|	c-iterator
+	
+|	NAME ':' range-expression
+	{
+		$$ = new Iterator::Range ($1.location, $1.text, $3);
+	}
+	
+|	NAME ':' expression
+	{
+		$$ = new Iterator::Custom ($1.location, $1.text, $3);
+	}
+
+
+iterator-define:
+	
+	'(' iterator-define ')' { $$ = $2; }
+	
+|	c-iterator
+	
+|	range-expression
+	{
+		$$ = new Iterator::Range ($1.location, $1);
+	}
+	
+|	expression %prec ATOMIC
+	{
+		$$ = new Iterator::Custom ($1.location, $1);
+	}
+
+
+c-iterator:
+	
+	line ';' expression ';' line
+	{
+		$$ = new Iterator::Loop ($1->location, $1, $3, $5);
+	}
+
+
+label:
+	
+	NAME
+	{
+		$$ = Label ($1.location, $1.text);
+	}
+	
+|	label '.' NAME
+	{
+		$$ = $1;
+		$$.names.append ($3.text);
+	}
+
 
 variable:
 	
@@ -566,27 +527,17 @@ variable:
 		$$.type = $1;
 	}
 
+
 variables:
 	
 	type instances
 	{
-		$$ = $2;
-		auto instances = $2;
-		
-		/*
-		 | To avoid an extraneous symbol type for
-		 | multi-variable declarations, pass the
-		 | first variable's pointer to 
-		*/
-		Variable terminator;
-		terminator.kind = Symbol::NONE;
-		instances.append (terminator);
+		auto instances = $$ = $2;
 		
 		for (int i = 0: instances.count; ++i)
-		{
 			instances [i].type = $1;
-		}
 	}
+
 
 instances:
 	
@@ -602,103 +553,69 @@ instances:
 		$$->append ($3);
 	}
 
+
 instance:
 	
-	label lengths initializer
+	counted-instance initializer
 	{
-		$$ = new <Variable> ();
-		$$->name = $1->names.last();
-		$$->location = $1->location;
-		$$->initializer = $3;
-		$$->is_variadic = false;
-		
-		Type* type = & $$->type;
-		
-		for (auto length : *$2)
-		{
-			type->data = Type::ARRAY;
-			type->array.count = length;
-			
-			type->array.contents = new <Type> ();
-			type = type->array.contents;
-		}
-		
-		// TODO: find target scope using path label
+		$$ = $1;
+		$$.initializer = $2;
 	}
 	
-|	label lengths TAIL
+|	counted-instance TAIL
 	{
-		$$ = new <Variable> ();
-		$$->name = $1->names.last();
-		$$->location = $1->location;
-		$$->initializer = 0;
-		$$->is_variadic = true;
-		
-		Type* type = & $$->type;
-		
-		for (auto length : *$2)
-		{
-			type->data = Type::ARRAY;
-			type->array.count = length;
-			
-			type->array.contents = new <Type> ();
-			type = type->array.contents;
-		}
-		
-		// TODO: find target scope using path label
+		$$ = $1;
+		$$.variadic = true;
 	}
 	
 |	error { $$ = 0; }
 
-lengths:
-	%empty %prec EMPTY { $$ = new <Array <Expression*>> (); }
-|	lengths length { $$ = $1; $$->append ($2); }
 
-length:
-	'[' expression ']' { $$ = $2; }
+counted-instance:
+
+	label %prec EMPTY	{ $$ = Variable ($1.location, $1.text); }
+	
+|	label dimensionality %prec '[' { $$ = Variable ($1.location, $1.text, $2); }
+
+
+dimensionality:
+	'[' expression ']' { $$ = {}; $$.append ($2); }
+|	dimensionality '[' expression ']' { $$ = $1; $$.append ($3); }
 
 initializer:
 	%empty %prec EMPTY { $$ = 0; }
 |	'=' expression { $$ = $2; }
 
+
 function:
 	
 	type label tuple scope
 	{
-		$$ = new <Function> ();
-		
-		$$->name = $2->names.last();
-		$$->parameters = $3;
-		$$->body = $4;
+		$$ = new Function ($1->location, $2, $3, $4);
 	}
 
-tuple:
-	'(' parameters-or-none ')' { $$ = $2; }
 
-parameters-or-none:
-	%empty %prec EMPTY { $$ = new <Scope> (); }
-|	parameters
+tuple:
+	'(' parameters ')' { $$ = $2; }
+
 
 parameters:
 
-	variable
-	{
-		$$ = new <Scope> ();
-		$$->kind = Scope::STRUCT;
-		
-		$$->insert (SymbolFrom ($1));
-	}
+	%empty %prec EMPTY { $$ = Scope (current.location); }
 	
 |	parameters ',' variable
 	{
 		$$ = $1;
-		$$->insert (SymbolFrom ($3));
+		$$.insert ($3);
 	}
+
 
 type:
 	
 	type-qualifiers datatype indirection
 	{
+		// TODO
+		/*
 		Type* type = new <Type> ();
 		
 		int idx = 0;
@@ -717,108 +634,50 @@ type:
 		{
 			type->number.representation = $1;
 		}
+		*/
 	}
 
-type-qualifiers:
-	
-	%empty { $$ = {}; }
-	
-|	type-qualifiers type-qualifier
-	{
-		if ($1.constness)
-			$$.constness = true;
-		
-		if ($1.representation isnt Type::DEFAULT)
-			$$.representation = $1.representation;
-	}
-
-type-qualifier:
-
-	CONST     { $$.representation = Type::DEFAULT; $$.constness = true; }
-|	SIGNED    { $$.representation = Type::SIGNED; $$.constness = false; }
-|	UNSIGNED  { $$.representation = Type::UNSIGNED; $$.constness = false; }
-|	COMPLEX   { $$.representation = Type::COMPLEX; $$.constness = false; }
-|	IMAGINARY { $$.representation = Type::IMAGINARY; $$.constness = false; }
-
-indirection:
-	
-	%empty { $$.count = 0; }
-	
-|	indirection pointer
-	{
-		$$.pointers [$$.count] = $2;
-	}
-
-pointer:
-	'~' const { $$.constness = $2; $$.c_style = false; }
-|	'*' const { $$.constness = $2; $$.c_style = true; }
-| '@' const { $$.constness = true; $$.c_style = false; }
-
-const:
-	%empty { $$ = false; }
-|	CONST  { $$ = true; }
 
 datatype:
 
-	basic-type
-	{
-		$$ = new <Type> ();
-		$$->data = Type::NUMERIC;
-		$$->number = $1;
-	}
+	basic-type { $$ = $1; }
 	
 |	tuple
 	{
-		$$ = new <Type> ();
-		$$->data = Type::USER;
-		$$->user_def.ptr = $1;
-		
-		// TODO: ptr should be a Symbol* not Scope*
-		// construct a Symbol around tuple
+		// TODO
 	}
 	
 |	TYPEOF label
 	{
-		$$ = new <Type> ();
-		$$->data = Type::META;
-		$$->path = $2;
+		// TODO
 	}
 	
 |	label
 	{
-		$$ = new <Type> ();
-		$$->data = Type::UNRESOLVED;
-		$$->path = $1;
+		// TODO
 	}
 
-basic-type:
-	
-	BIT         { $$.scalar = Type::Numeric::BIT; }
-|	CHAR        { $$.scalar = Type::Numeric::CHAR; }
-|	BYTE        { $$.scalar = Type::Numeric::BYTE; }
-|	SHORT int   { $$.scalar = Type::Numeric::SHORT; }
-|	longs int   { $$.scalar = Type::Numeric::LONG; $$.is_long = $1; }
-|	INT         { $$.scalar = Type::Numeric::INT; }
-|	FLOAT       { $$.scalar = Type::Numeric::FLOAT; }
-|	long DOUBLE { $$.scalar = Type::Numeric::DOUBLE; $$.is_long = $1; }
 
-longs:
+case-expression:
 	
-	LONG { $$ = 0;}
-|	longs LONG { $$ = 1; }
+	expression %prec EMPTY
+|	range-expression %prec TAIL
 
-long:
+
+range-expression:
 	
-	%empty { $$ = 0; }
-|	LONG { $$ = 1; }
+	expression TAIL expression
+	{
+		$$ = new BinaryExpression
+		($1->location, $1, Expression::RANGE, $3);
+	}
 
-int:
-	%empty
-|	INT
 
 expression:
 	
 	atomic
+	
+|	meta expression %prec META { new MetaExpression ($1); }
 	
 |	prefix-operator expression %prec PREFIX
 	{
@@ -850,22 +709,21 @@ expression:
 	
 |	expression ',' expression %prec ','
 	{
-		if ($$->opcode is Expression::LIST)
-		{
-			$$ = $1;
-			$$->expressions.append ($2);
-		}
-		
-		else
+		if ($$->opcode isnt Expression::LIST)
 		{
 			$$ = new ListExpression ($1->location); 
 			$$->expressions.append ($1);
 			$$->expressions.append ($3);
 		}
 		
+		else
+		{
+			$$ = $1;
+			$$->expressions.append ($2);
+		}
 	}
 	
-|	expression atomic %prec ATOMIC
+|	expression expression %prec INFIX
 	{
 		// TODO: function call OR multiplication
 		// note that function calls with empty arguments are matched by the variable access expression
@@ -874,113 +732,213 @@ expression:
 		($1->location, $1, $2);
 	}
 
+
 atomic:
 
 	'(' expression ')' { $$ = $2; }
 |	'[' expression ']' { $$ = $2; }
 |	value
 
+
 value:
 	
-	label %prec NAME
-	{
-		$$ = new <Expression> ();
-		$$->opcode = Expression::VARIABLE;
-		$$->location = $1->location;
-		$$->variable.path = *$1; free ($1);
-	}
+	label %prec NAME { $$ = new ReferenceExpression ($1.location, $1); }
 	
-|	const-value
-	{
-		$$ = new <Expression> ();
-		$$->opcode = Expression::LITERAL;
-		$$->location = $1->location;
-		$$->constant = $1->text;
-	}
-		
-|	meta-value
+|	literal { $$ = new LiteralExpression ($1.location, $1text); }
 
-const-value:
+
+indirection:
+	
+	%empty { $$ = {}; }
+	
+|	indirection pointer
+	{
+		$$ = $1;
+		$$.append ($2);
+	}
+
+
+pointer:
+	'~' const { $$.constness = $2; $$.c_style = false; }
+| '@' const { $$.constness = true; $$.c_style = false; }
+|	'*' const { $$.constness = $2; $$.c_style = true; }
+
+
+basic-type:
+	
+	BIT
+	{ $$ = Type::Numeric ($1.location, Type::Numeric::BIT); }
+|	CHAR
+	{ $$ = Type::Numeric ($1.location, Type::Numeric::CHAR); }
+|	BYTE
+	{ $$ = Type::Numeric ($1.location, Type::Numeric::BYTE); }
+|	SHORT int
+	{ $$ = Type::Numeric ($1.location, Type::Numeric::SHORT); }
+|	longs int
+	{ $$ = Type::Numeric (location_buffer, Type::Numeric::LONG, $1); }
+|	INT
+	{ $$ = Type::Numeric ($1.location, Type::Numeric::INT); }
+|	FLOAT
+	{ $$ = Type::Numeric ($1.location, Type::Numeric::FLOAT); }
+|	long DOUBLE
+	{ $$ = Type::Numeric (location_buffer, Type::Numeric::DOUBLE, $1); }
+
+
+qualifiers:
+	%empty %prec EMPTY { $$ = {false, false, false, false}; }
+|	qualifiers LOCAL  { $$.is_local = true; }
+|	qualifiers STATIC { $$.is_static = true; }
+|	qualifiers EXTERN { $$.is_extern = true; }
+|	qualifiers INLINE { $$.is_inline = true; }
+
+
+type-qualifiers:
+	
+	%empty { $$ = {}; }
+	
+|	type-qualifiers type-qualifier
+	{
+		if ($1.constness)
+			$$.constness = true;
+		
+		if ($1.representation isnt Type::DEFAULT)
+			$$.representation = $1.representation;
+	}
+
+
+type-qualifier:
+
+	CONST     { $$.representation = Type::DEFAULT; $$.constness = true; }
+|	SIGNED    { $$.representation = Type::SIGNED; $$.constness = false; }
+|	UNSIGNED  { $$.representation = Type::UNSIGNED; $$.constness = false; }
+|	COMPLEX   { $$.representation = Type::COMPLEX; $$.constness = false; }
+|	IMAGINARY { $$.representation = Type::IMAGINARY; $$.constness = false; }
+
+
+struct-module-union:
+
+	STRUCT { $$ = $1; $$.integer = Module::STRUCT; }
+|	MODULE { $$ = $1; $$.integer = Module::MODULE; }
+|	UNION { $$ = $1; $$.integer = Module::UNION; }
+
+
+meta:
+
+	SIZEOF { $$ = $1; $$.integer = MetaExpression::SIZEOF; }
+|	COUNTOF { $$ = $1; $$.integer = MetaExpression::COUNTOF; }
+|	NAMEOF { $$ = $1; $$.integer = MetaExpression::NAMEOF; }
+|	STRINGOF { $$ = $1; $$.integer = MetaExpression::STRINGOF; }
+
+
+prefix-operator:
+
+	'!' { $$ = $1; $1.integer = Expression::NOT; }
+|	'~' { $$ = $1; $1.integer = Expression::COMPLEMENT; }
+|	INCREMENT { $$ = $1; $1.integer = Expression::PRE_INCREMENT; }
+|	DECREMENT { $$ = $1; $1.integer = Expression::PRE_DECREMENT; }
+|	'+' { $$ = $1; $1.integer = Expression::PLUS; }
+|	'-' { $$ = $1; $1.integer = Expression::MINUS; }
+|	'*' { $$ = $1; $1.integer = Expression::DEREFERENCE; }
+|	'&' { $$ = $1; $1.integer = Expression::ADDRESS; }
+
+
+postfix-operator:
+
+	INCREMENT %prec POSTFIX { $$ = $1; $1.integer = Expression::POST_INCREMENT; }
+|	DECREMENT %prec POSTFIX { $$ = $1; $1.integer = Expression::POST_DECREMENT; }
+
+
+infix-operator:
+
+	AND { $$ = $1; $1.integer = Expression::BOTH; }
+|	OR { $$ = $1; $1.integer = Expression::EITHER; }	
+|	COMPARE { $$ = $1; $1.integer = Expression::EQUALS; }
+|	INEQUAL { $$ = $1; $1.integer = Expression::INEQUAL; }
+|	'<' { $$ = $1; $1.integer = Expression::LESS; }
+| AT_MOST { $$ = $1; $1.integer = Expression::LESS_OR_EQUAL; }
+| '>' { $$ = $1; $1.integer = Expression::MORE; }
+| AT_LEAST { $$ = $1; $1.integer = Expression::MORE_OR_EQUAL; }
+|	arithmetic
+|	arithmetic '=' { $$ = $1; $1.integer += Expression::ASSIGN; }
+|	'=' { $$ = $1; $1.integer = Expression::ASSIGN; }
+|	','
+
+
+arithmetic:
+
+	'*' { $$ = $1; $1.integer = Expression::MULTIPLY; }
+|	'/' { $$ = $1; $1.integer = Expression::DIVIDE; }
+|	'%' { $$ = $1; $1.integer = Expression::MOD; }
+|	'&' { $$ = $1; $1.integer = Expression::AND; }
+|	'+' { $$ = $1; $1.integer = Expression::PLUS; }
+|	'-' { $$ = $1; $1.integer = Expression::MINUS; }
+|	'^' { $$ = $1; $1.integer = Expression::XOR; }
+|	'|' { $$ = $1; $1.integer = Expression::OR; }
+|	SHIFT_L { $$ = $1; $1.integer = Expression::SHIFT_LEFT; }
+|	SHIFT_R { $$ = $1; $1.integer = Expression::SHIFT_RIGHT; }
+|	ROTATE_L { $$ = $1; $1.integer = Expression::ROTATE_LEFT; }
+|	ROTATE_R { $$ = $1; $1.integer = Expression::ROTATE_RIGHT; }
+
+
+definable-operator:
+	
+	INCREMENT { $$ = $1; $1.integer = Expression::PRE_INCREMENT; }
+|	DECREMENT { $$ = $1; $1.integer = Expression::PRE_DECREMENT; }
+|	'+' { $$ = $1; $1.integer = Expression::PLUS; }
+|	'-' { $$ = $1; $1.integer = Expression::MINUS; }
+|	'!' { $$ = $1; $1.integer = Expression::NOT; }
+|	'&' { $$ = $1; $1.integer = Expression::AND; }
+|	'*' { $$ = $1; $1.integer = Expression::XOR; }
+|	'|' { $$ = $1; $1.integer = Expression::OR; }
+|	SHIFT_L { $$ = $1; $1.integer = Expression::SHIFT_L; }
+|	SHIFT_R { $$ = $1; $1.integer = Expression::SHIFT_R; }
+|	ROTATE_L { $$ = $1; $1.integer = Expression::ROTATE_L; }
+|	ROTATE_R { $$ = $1; $1.integer = Expression::ROTATE_R; }
+
+
+else-block:
+	%empty { $$.valid = false; }
+|	ELSE scope { $$ = Scope ($1.location, $2); }
+
+
+longs:
+	
+	LONG { $$ = 1; $1.location; }
+|	longs LONG { $$ += 1; }
+
+
+long:
+	
+	%empty { $$ = 0; location_buffer = current.location; }
+|	LONG { $$ = 1; location_buffer = $1.location; }
+
+
+int:
+	%empty
+|	INT
+
+
+const:
+	%empty { $$ = false; }
+|	CONST  { $$ = true; }
+
+
+literal:
 
 	CONST_INT
 |	CONST_FLOAT
 |	CONST_CHAR 
 |	CONST_STRING
 
-meta-value:
 
-	SIZEOF expression
-	{
-		$$ = new <Expression> ();
-		$$->opcode = Expression::META;
-		$$->location = $1->location;
-		$$->meta.kind = $$->meta.SIZEOF;
-		$$->meta.value = $2;
-	}
-	
-|	COUNTOF expression
-	{
-		$$ = new <Expression> ();
-		$$->opcode = Expression::META;
-		$$->location = $1->location;
-		$$->meta.kind = $$->meta.COUNTOF;
-		$$->meta.value = $2;
-	}
-	
-|	NAMEOF expression
-	{
-		$$ = new <Expression> ();
-		$$->opcode = Expression::META;
-		$$->location = $1->location;
-		$$->meta.kind = $$->meta.NAMEOF;
-		$$->meta.value = $2;
-	}
+semicolon:
+	%empty %prec EMPTY { $$ = current.token; }
+|	';'
 
-prefix-operator:
+colon:
+	%empty %prec EMPTY { $$ = current.token; }
+|	':'
 
-	'!' { $$ = $1; $1->integer = Expression::NOT; }
-|	'~' { $$ = $1; $1->integer = Expression::COMPLEMENT; }
-|	INCREMENT { $$ = $1; $1->integer = Expression::PRE_INCREMENT; }
-|	DECREMENT { $$ = $1; $1->integer = Expression::PRE_DECREMENT; }
-|	'+' { $$ = $1; $1->integer = Expression::PLUS; }
-|	'-' { $$ = $1; $1->integer = Expression::MINUS; }
-|	'*' { $$ = $1; $1->integer = Expression::DEREFERENCE; }
-|	'&' { $$ = $1; $1->integer = Expression::ADDRESS; }
-
-postfix-operator:
-
-	INCREMENT %prec POSTFIX { $$ = $1; $1->integer = Expression::POST_INCREMENT; }
-|	DECREMENT %prec POSTFIX { $$ = $1; $1->integer = Expression::POST_DECREMENT; }
-
-infix-operator:
-
-	AND { $$ = $1; $1->integer = Expression::BOTH; }
-|	OR { $$ = $1; $1->integer = Expression::EITHER; }	
-|	COMPARE { $$ = $1; $1->integer = Expression::EQUALS; }
-|	INEQUAL { $$ = $1; $1->integer = Expression::INEQUAL; }
-|	'<' { $$ = $1; $1->integer = Expression::LESS; }
-| AT_MOST { $$ = $1; $1->integer = Expression::LESS_OR_EQUAL; }
-| '>' { $$ = $1; $1->integer = Expression::MORE; }
-| AT_LEAST { $$ = $1; $1->integer = Expression::MORE_OR_EQUAL; }
-|	arithmetic
-|	arithmetic '=' { $$ = $1; $1->integer += Expression::ASSIGN; }
-|	'=' { $$ = $1; $1->integer = Expression::ASSIGN; }
-|	','
-
-arithmetic:
-
-	'*' { $$ = $1; $1->integer = Expression::MULTIPLY; }
-|	'/' { $$ = $1; $1->integer = Expression::DIVIDE; }
-|	'%' { $$ = $1; $1->integer = Expression::MOD; }
-|	'&' { $$ = $1; $1->integer = Expression::AND; }
-|	'+' { $$ = $1; $1->integer = Expression::PLUS; }
-|	'-' { $$ = $1; $1->integer = Expression::MINUS; }
-|	'^' { $$ = $1; $1->integer = Expression::XOR; }
-|	'|' { $$ = $1; $1->integer = Expression::OR; }
-|	SHIFT_L { $$ = $1; $1->integer = Expression::SHIFT_LEFT; }
-|	SHIFT_R { $$ = $1; $1->integer = Expression::SHIFT_RIGHT; }
-|	ROTATE_L { $$ = $1; $1->integer = Expression::ROTATE_LEFT; }
-|	ROTATE_R { $$ = $1; $1->integer = Expression::ROTATE_RIGHT; }
 
 %%
 

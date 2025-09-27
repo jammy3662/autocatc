@@ -23,6 +23,13 @@ struct Tag
 struct Label: Tag
 {
 	Array <char*> names;
+	
+	inline
+	char* name () {	return names.last(); } 
+	
+	Label () = default;
+	Label (Location);
+	Label (Location, char* first);
 };
 
 /*-------------------------------------
@@ -76,18 +83,27 @@ struct Type: Tag
 
 struct Type::Numeric: Type
 {
-	byte is_long: 1;
+	fast longness = 0;
 	
 	enum Scalar
 	{ BIT, CHAR, BYTE, SHORT, INT, LONG,
 		FLOAT, DOUBLE, };
 	unsigned byte scalar: 3;
+	
+	Numeric (Location, fast scalar, fast longness = 0);
 };
 
 struct Type::Pointer: Type
 {
-	Type* pointee;
-	bool constness: 1, c_style: 1;
+	Type* underlying_type;
+	
+	fast num_pointers = 0;
+	
+	struct Indirection
+	{ char constness: 1, c_style: 1; }
+	indirection [8];
+	
+	Pointer (Location, Type*, ::Array <Indirection>);
 };
 
 struct Type::Array: Type
@@ -103,7 +119,7 @@ struct Type::Function: Type
 	Scope* body;
 };
 
-using Template = Array <Reference>;
+struct Template: Array<Reference>, Tag {};
 
 struct Symbol: Tag
 {
@@ -156,6 +172,7 @@ struct Expression: Symbol
 };
 
 struct Iterator;
+struct Operator;
 
 struct Scope: Symbol
 {
@@ -175,16 +192,16 @@ struct Scope: Symbol
 	fields; // index into members
 	
 	std::unordered_multimap <std::string, fast>*
-	nametable = 0; // index into members by name
+	nametable = new std::unordered_multimap <std::string, fast>; // index into members by name
 	
 	// for a given scope, there can only be one definition per operator/opcode
-	std::unordered_map <fast, Symbol*>*
-	operators;
+	std::unordered_map <fast, Operator*>*
+	operators = new std::unordered_map <fast, Operator*>;
 	
 	Iterator*
 	iterator;
 	
-	void insert (Symbol*);
+	int insert (Symbol*); // returns index of insert within parent
 	
 	Symbol* find (Label path); // find in this scope or its nested scopes
 	Symbol* lookup (Label path); // find in any accessible part of the symbol table
@@ -194,6 +211,7 @@ struct Scope: Symbol
 	Scope (Location);
 };
 
+fast thing;
 
 struct Iterator: Symbol
 {
@@ -213,18 +231,20 @@ struct Iterator::Loop: Iterator
 
 struct Iterator::Range: Iterator
 {
-	char* name;
 	Expression* range;
+	char* instance_name;
 	
 	Range (Location, char* name, Expression* range);
+	Range (Location, Expression* range);
 };
 
 struct Iterator::Custom: Iterator
 {
-	char* name;
 	Reference container;
+	char* instance_name;
 	
 	Custom (Location, char* name, Reference);
+	Custom (Location, Reference);
 };
 
 struct Module: Scope
@@ -239,7 +259,7 @@ struct Enum: Scope
 {
 	Enum (Location);
 	Enum (Location, Scope);
-	Enum (Location, struct Variable []);
+	Enum (Array <Variable>);
 	Enum (Location, char* name, Scope);
 };
 
@@ -254,11 +274,14 @@ struct Conditional: Scope
 
 struct For: Scope
 {
+	Iterator* iterator;
+	
 	For (Location, Iterator*, Scope);
 };
 
 struct Instance
 {
+	Array <Expression*> dimensionality;
 	opt <Expression*> initializer;
 	bool variadic = false;
 };
@@ -268,7 +291,8 @@ struct Variable: Symbol, Instance
 	Type* type;
 	
 	Variable () = default;
-	Variable (Location, char* name, Expression* = 0);
+	Variable (Location, char* name, Array <Expression*> dimensionality, Expression* initializer = 0);
+	Variable (Location, char* name, Expression* initializer = 0);
 	Variable (Location, Variable);
 };
 
@@ -277,6 +301,10 @@ struct Function: Symbol
 	Type* return_type;
 	Scope parameters;
 	opt <Scope*> body;
+	
+	Function (Location, Function);
+	Function (Location, Type*, Reference path, Scope parameters);
+	Function (Location, Type*, Reference path, Scope parameters, Scope body);
 };
 
 struct Include: Symbol, Reference
@@ -332,6 +360,8 @@ struct MetaExpression: Expression
 	kind;
 	
 	Expression* expression;
+	
+	MetaExpression (Location, fast kind, Expression*);
 };
 
 struct PairExpression: Expression
