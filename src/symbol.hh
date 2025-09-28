@@ -25,7 +25,7 @@ struct Label: Tag
 	Array <char*> names;
 	
 	inline
-	char* name () {	return names.last(); } 
+	char* name () const {	return names.last(); } 
 	
 	Label () = default;
 	Label (Location);
@@ -40,6 +40,8 @@ struct Reference: Tag
 {
 	Label path;
 	struct Symbol* ptr = 0;
+	
+	Reference () = default;
 	
 	Reference (Label Path)
 	{ path = Path; }
@@ -144,6 +146,8 @@ struct Symbol: Tag
 	fast kind = NONE;
 	Scope* parent = 0;
 	
+	Reference target; // desired path to symbol
+	
 	Array <Log> logs;
 	
 	char* comment = 0;
@@ -169,6 +173,23 @@ struct Expression: Symbol
 	Type* type;
 	fast opcode;
 	bool constant = false;
+};
+
+struct Instance
+{
+	Array <Expression*> dimensionality;
+	opt <Expression*> initializer;
+	bool variadic = false;
+};
+
+struct Variable: Symbol, Instance
+{
+	Type* type;
+	
+	Variable () = default;
+	Variable (Location, Reference name, Array <Expression*> dimensionality, Expression* initializer = 0);
+	Variable (Location, Reference name, Expression* initializer = 0);
+	Variable (Location, Variable);
 };
 
 struct Iterator;
@@ -201,7 +222,7 @@ struct Scope: Symbol
 	Iterator*
 	iterator;
 	
-	int insert (Symbol*); // returns index of insert within parent
+	fast insert (Symbol*); // returns index of insert within parent
 	
 	Symbol* find (Label path); // find in this scope or its nested scopes
 	Symbol* lookup (Label path); // find in any accessible part of the symbol table
@@ -210,8 +231,6 @@ struct Scope: Symbol
 	Scope (Location, Scope);
 	Scope (Location);
 };
-
-fast thing;
 
 struct Iterator: Symbol
 {
@@ -234,7 +253,7 @@ struct Iterator::Range: Iterator
 	Expression* range;
 	char* instance_name;
 	
-	Range (Location, char* name, Expression* range);
+	Range (Location, char* instance_name, Expression* range);
 	Range (Location, Expression* range);
 };
 
@@ -243,7 +262,7 @@ struct Iterator::Custom: Iterator
 	Reference container;
 	char* instance_name;
 	
-	Custom (Location, char* name, Reference);
+	Custom (Location, char* instance_name, Reference);
 	Custom (Location, Reference);
 };
 
@@ -251,7 +270,7 @@ struct Module: Scope
 {
 	 enum Form { STRUCT, MODULE, UNION };
 	 
-	 Module (Location, fast, char* name);
+	 Module (Location, fast form, Reference name);
 	 Module (Location, Module);
 };
 
@@ -260,7 +279,7 @@ struct Enum: Scope
 	Enum (Location);
 	Enum (Location, Scope);
 	Enum (Array <Variable>);
-	Enum (Location, char* name, Scope);
+	Enum (Location, Reference name, Scope);
 };
 
 struct Conditional: Scope
@@ -279,23 +298,6 @@ struct For: Scope
 	For (Location, Iterator*, Scope);
 };
 
-struct Instance
-{
-	Array <Expression*> dimensionality;
-	opt <Expression*> initializer;
-	bool variadic = false;
-};
-
-struct Variable: Symbol, Instance
-{
-	Type* type;
-	
-	Variable () = default;
-	Variable (Location, char* name, Array <Expression*> dimensionality, Expression* initializer = 0);
-	Variable (Location, char* name, Expression* initializer = 0);
-	Variable (Location, Variable);
-};
-
 struct Function: Symbol
 {
 	Type* return_type;
@@ -303,8 +305,8 @@ struct Function: Symbol
 	opt <Scope*> body;
 	
 	Function (Location, Function);
-	Function (Location, Type*, Reference path, Scope parameters);
-	Function (Location, Type*, Reference path, Scope parameters, Scope body);
+	Function (Location, Type*, Reference name, Scope parameters);
+	Function (Location, Type*, Reference name, Scope parameters, Scope body);
 };
 
 struct Include: Symbol, Reference
@@ -314,7 +316,7 @@ struct Include: Symbol, Reference
 
 struct Alias: Symbol, Reference
 {
-	Alias (Location, char* name, Reference);
+	Alias (Location, Reference name, Reference);
 };
 
 struct Marker: Symbol
@@ -394,7 +396,7 @@ struct UnaryExpression: Expression
 {
 	Expression* operand;
 	
-	UnaryExpression (Location, Opcode, Expression*);
+	UnaryExpression (Location, fast opcode, Expression*);
 };
 
 struct BinaryExpression: Expression
@@ -405,7 +407,7 @@ struct BinaryExpression: Expression
 		struct {Expression *left, *right;};
 	};
 	
-	BinaryExpression (Location, Expression*, Opcode, Expression*);
+	BinaryExpression (Location, Expression*, fast opcode, Expression*);
 };
 
 struct ListExpression: Expression

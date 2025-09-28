@@ -136,7 +136,7 @@ Location location_buffer;
 	
 	Array <CatLang::Expression*> dimensionality;
 	
-	CatLang::Type raw_type;
+	CatLang::Type type_base;
 	CatLang::Type* type;
 	CatLang::Scope scope;
 	CatLang::Scope* scope_ptr;
@@ -146,13 +146,11 @@ Location location_buffer;
 	CatLang::Expression* expression;
 	CatLang::Expression range [2];
 	
-	Array <CatLang::Type::Indirection>
+	Array <CatLang::Type::Pointer::Indirection>
 	indirection;
 	
 	bool boolean;
 	int integer;
-	
-	CATSTYPE () {}
 }
 
 %type <scope> block scope braced-scope
@@ -172,7 +170,7 @@ Location location_buffer;
 
 %type <label> label
 %type <type> type
-%type <raw_type> datatype
+%type <type_base> datatype
 %type <basic_type> basic-type
 %type <integer> longs
 %type <integer> long
@@ -183,8 +181,7 @@ Location location_buffer;
 %type <token> literal meta
 
 %type <qualifiers> qualifiers
-%type <type> type-qualifiers
-%type <type> type-qualifier
+%type <type_base> type-qualifiers type-qualifier
 %type <variables> variables
 %type <variable> variable
 %type <variables> instances
@@ -242,19 +239,13 @@ statement:
 	
 | ALIAS label '=' label semicolon
 	{
-		char* name = $2.names.last();
-		// TODO: handle nested names (a.b.name)
-		
-		$$ = new Alias ($1.location, name, $4);
+		$$ = new Alias ($1.location, $2, $4);
 		current_scope.insert ($$);
 	}
 	
 |	label ':'
 	{
-		char* name = $1.names.last();
-		// TODO: handle nested names (a.b.name)
-		
-		$$ = new Marker ($1.location, name);
+		$$ = new Marker ($1.location, $1.name());
 		current_scope.insert ($$);
 	}
 	
@@ -273,7 +264,7 @@ statement:
 |	INCLUDE label semicolon
 	{
 		$$ = new Include ($1.location, $2);
-		current_scope.insert ($$); 
+		current_scope.insert ($$);
 	}
 	
 |	CONTINUE semicolon
@@ -371,7 +362,8 @@ statement:
 	
 | template module
 	{
-		$$ = $1;
+		$$ = $2;
+		$2->templates = $1;
 		current_scope.insert ($$);
 	}
 
@@ -407,7 +399,7 @@ module:
 	
 	qualifiers struct-module-union label scope
 	{
-		$$ = new Module ($2.location, (Module::Form) $2.integer, $3.names.last());
+		$$ = new Module ($2.location, (Module::Form) $2.integer, $3);
 		$$->qualifiers = $1;
 		
 		// TODO: find target scope using path label
@@ -415,7 +407,7 @@ module:
 	
 |	qualifiers ENUM label enum-scope
 	{
-		$$ = new Enum ($2.location, $3.names.last(), $4);
+		$$ = new Enum ($2.location, $3, $4);
 		$$->qualifiers = $1;
 		
 		// TODO: find target scope using path label
@@ -449,7 +441,7 @@ enum-block:
 
 template:
 	
-	TEMPLATE '<' template-parameters '>' { $$ = $2; location_buffer = $1.location; }
+	TEMPLATE '<' template-parameters '>' { $$ = $3; location_buffer = $1.location; }
 
 
 template-parameters:
@@ -488,12 +480,12 @@ iterator-define:
 	
 |	range-expression
 	{
-		$$ = new Iterator::Range ($1.location, $1);
+		$$ = new Iterator::Range ($1->location, $1);
 	}
 	
 |	expression %prec ATOMIC
 	{
-		$$ = new Iterator::Custom ($1.location, $1);
+		$$ = new Iterator::Custom ($1->location, $1);
 	}
 
 
@@ -534,7 +526,7 @@ variables:
 	{
 		auto instances = $$ = $2;
 		
-		for (int i = 0: instances.count; ++i)
+		for (int i = 0; instances.count; ++i)
 			instances [i].type = $1;
 	}
 
@@ -550,7 +542,7 @@ instances:
 |	instances ',' instance
 	{
 		$$ = $1;
-		$$->append ($3);
+		$$.append ($3);
 	}
 
 
@@ -567,15 +559,13 @@ instance:
 		$$ = $1;
 		$$.variadic = true;
 	}
-	
-|	error { $$ = 0; }
 
 
 counted-instance:
 
-	label %prec EMPTY	{ $$ = Variable ($1.location, $1.text); }
+	label %prec EMPTY	{ $$ = Variable ($1.location, $1); }
 	
-|	label dimensionality %prec '[' { $$ = Variable ($1.location, $1.text, $2); }
+|	label dimensionality %prec '[' { $$ = Variable ($1.location, $1, $2); }
 
 
 dimensionality:
@@ -591,7 +581,7 @@ function:
 	
 	type label tuple scope
 	{
-		$$ = new Function ($1->location, $2, $3, $4);
+		$$ = Function ($1->location, $1, $2, $3, $4);
 	}
 
 
@@ -606,7 +596,7 @@ parameters:
 |	parameters ',' variable
 	{
 		$$ = $1;
-		$$.insert ($3);
+		$$.insert (new Variable ($3));
 	}
 
 
@@ -677,56 +667,49 @@ expression:
 	
 	atomic
 	
-|	meta expression %prec META { new MetaExpression ($1); }
+|	meta expression %prec META
+	{
+		new MetaExpression (location_buffer, $1.integer, $2);
+	}
 	
 |	prefix-operator expression %prec PREFIX
 	{
-		$$ = new <Expression> ();
-		$$->opcode = $1->integer;
-		$$->location = $1->location;
-		
-		$$->operand = $2;
+		$$ = new UnaryExpression ($1.location, $1.integer, $2);
 	}
 	
 |	expression infix-operator expression %prec INFIX
 	{
-		$$ = new <Expression> ();
-		$$->opcode = $2->integer;
-		$$->location = $1->location;
-		
-		$$->operands [0] = $1;
-		$$->operands [1] = $3;
+		$$ = new BinaryExpression ($1->location, $1, $2.integer, $3);
 	}
 	
 |	expression postfix-operator %prec POSTFIX
 	{
-		$$ = new <Expression> ();
-		$$->opcode = $2->integer;
-		$$->location = $1->location;
-		
-		$$->operand = $1;
+		$$ = new UnaryExpression ($1->location, $2.integer, $1);
 	}
 	
 |	expression ',' expression %prec ','
 	{
+		ListExpression* list;
+		
 		if ($$->opcode isnt Expression::LIST)
 		{
-			$$ = new ListExpression ($1->location); 
-			$$->expressions.append ($1);
-			$$->expressions.append ($3);
+			list = new ListExpression ($1->location); 
+			list->expressions.append ($1);
+			list->expressions.append ($3);
+			$$ = list;
 		}
 		
 		else
 		{
-			$$ = $1;
-			$$->expressions.append ($2);
+			list = (ListExpression*) ($$ = $1);
+			list->expressions.append ($3);
 		}
 	}
 	
 |	expression expression %prec INFIX
 	{
 		// TODO: function call OR multiplication
-		// note that function calls with empty arguments are matched by the variable access expression
+		// note that function calls with empty arguments are matched by the variable access (value) expression
 		
 		$$ = new PairExpression
 		($1->location, $1, $2);
@@ -744,7 +727,7 @@ value:
 	
 	label %prec NAME { $$ = new ReferenceExpression ($1.location, $1); }
 	
-|	literal { $$ = new LiteralExpression ($1.location, $1text); }
+|	literal { $$ = new LiteralExpression ($1.location, $1.text); }
 
 
 indirection:
@@ -824,76 +807,76 @@ struct-module-union:
 
 meta:
 
-	SIZEOF { $$ = $1; $$.integer = MetaExpression::SIZEOF; }
-|	COUNTOF { $$ = $1; $$.integer = MetaExpression::COUNTOF; }
-|	NAMEOF { $$ = $1; $$.integer = MetaExpression::NAMEOF; }
-|	STRINGOF { $$ = $1; $$.integer = MetaExpression::STRINGOF; }
+	SIZEOF { $$ = $1; $$.integer = MetaExpression::SIZEOF; location_buffer = $1.location; }
+|	COUNTOF { $$ = $1; $$.integer = MetaExpression::COUNTOF; location_buffer = $1.location; }
+|	NAMEOF { $$ = $1; $$.integer = MetaExpression::NAMEOF; location_buffer = $1.location; }
+|	STRINGOF { $$ = $1; $$.integer = MetaExpression::STRINGOF; location_buffer = $1.location; }
 
 
 prefix-operator:
 
-	'!' { $$ = $1; $1.integer = Expression::NOT; }
-|	'~' { $$ = $1; $1.integer = Expression::COMPLEMENT; }
-|	INCREMENT { $$ = $1; $1.integer = Expression::PRE_INCREMENT; }
-|	DECREMENT { $$ = $1; $1.integer = Expression::PRE_DECREMENT; }
-|	'+' { $$ = $1; $1.integer = Expression::PLUS; }
-|	'-' { $$ = $1; $1.integer = Expression::MINUS; }
-|	'*' { $$ = $1; $1.integer = Expression::DEREFERENCE; }
-|	'&' { $$ = $1; $1.integer = Expression::ADDRESS; }
+	'!' { $$ = $1; $$.integer = Expression::NOT; }
+|	'~' { $$ = $1; $$.integer = Expression::COMPLEMENT; }
+|	INCREMENT { $$ = $1; $$.integer = Expression::PRE_INCREMENT; }
+|	DECREMENT { $$ = $1; $$.integer = Expression::PRE_DECREMENT; }
+|	'+' { $$ = $1; $$.integer = Expression::PLUS; }
+|	'-' { $$ = $1; $$.integer = Expression::MINUS; }
+|	'*' { $$ = $1; $$.integer = Expression::DEREFERENCE; }
+|	'&' { $$ = $1; $$.integer = Expression::ADDRESS; }
 
 
 postfix-operator:
 
-	INCREMENT %prec POSTFIX { $$ = $1; $1.integer = Expression::POST_INCREMENT; }
-|	DECREMENT %prec POSTFIX { $$ = $1; $1.integer = Expression::POST_DECREMENT; }
+	INCREMENT %prec POSTFIX { $$ = $1; $$.integer = Expression::POST_INCREMENT; }
+|	DECREMENT %prec POSTFIX { $$ = $1; $$.integer = Expression::POST_DECREMENT; }
 
 
 infix-operator:
 
-	AND { $$ = $1; $1.integer = Expression::BOTH; }
-|	OR { $$ = $1; $1.integer = Expression::EITHER; }	
-|	COMPARE { $$ = $1; $1.integer = Expression::EQUALS; }
-|	INEQUAL { $$ = $1; $1.integer = Expression::INEQUAL; }
-|	'<' { $$ = $1; $1.integer = Expression::LESS; }
-| AT_MOST { $$ = $1; $1.integer = Expression::LESS_OR_EQUAL; }
-| '>' { $$ = $1; $1.integer = Expression::MORE; }
-| AT_LEAST { $$ = $1; $1.integer = Expression::MORE_OR_EQUAL; }
+	AND { $$ = $1; $$.integer = Expression::BOTH; }
+|	OR { $$ = $1; $$.integer = Expression::EITHER; }	
+|	COMPARE { $$ = $1; $$.integer = Expression::EQUALS; }
+|	INEQUAL { $$ = $1; $$.integer = Expression::INEQUAL; }
+|	'<' { $$ = $1; $$.integer = Expression::LESS; }
+| AT_MOST { $$ = $1; $$.integer = Expression::LESS_OR_EQUAL; }
+| '>' { $$ = $1; $$.integer = Expression::MORE; }
+| AT_LEAST { $$ = $1; $$.integer = Expression::MORE_OR_EQUAL; }
 |	arithmetic
-|	arithmetic '=' { $$ = $1; $1.integer += Expression::ASSIGN; }
-|	'=' { $$ = $1; $1.integer = Expression::ASSIGN; }
+|	arithmetic '=' { $$ = $1; $$.integer += Expression::ASSIGN; }
+|	'=' { $$ = $1; $$.integer = Expression::ASSIGN; }
 |	','
 
 
 arithmetic:
 
-	'*' { $$ = $1; $1.integer = Expression::MULTIPLY; }
-|	'/' { $$ = $1; $1.integer = Expression::DIVIDE; }
-|	'%' { $$ = $1; $1.integer = Expression::MOD; }
-|	'&' { $$ = $1; $1.integer = Expression::AND; }
-|	'+' { $$ = $1; $1.integer = Expression::PLUS; }
-|	'-' { $$ = $1; $1.integer = Expression::MINUS; }
-|	'^' { $$ = $1; $1.integer = Expression::XOR; }
-|	'|' { $$ = $1; $1.integer = Expression::OR; }
-|	SHIFT_L { $$ = $1; $1.integer = Expression::SHIFT_LEFT; }
-|	SHIFT_R { $$ = $1; $1.integer = Expression::SHIFT_RIGHT; }
-|	ROTATE_L { $$ = $1; $1.integer = Expression::ROTATE_LEFT; }
-|	ROTATE_R { $$ = $1; $1.integer = Expression::ROTATE_RIGHT; }
+	'*' { $$ = $1; $$.integer = Expression::MULTIPLY; }
+|	'/' { $$ = $1; $$.integer = Expression::DIVIDE; }
+|	'%' { $$ = $1; $$.integer = Expression::MOD; }
+|	'&' { $$ = $1; $$.integer = Expression::AND; }
+|	'+' { $$ = $1; $$.integer = Expression::PLUS; }
+|	'-' { $$ = $1; $$.integer = Expression::MINUS; }
+|	'^' { $$ = $1; $$.integer = Expression::XOR; }
+|	'|' { $$ = $1; $$.integer = Expression::OR; }
+|	SHIFT_L { $$ = $1; $$.integer = Expression::SHIFT_LEFT; }
+|	SHIFT_R { $$ = $1; $$.integer = Expression::SHIFT_RIGHT; }
+|	ROTATE_L { $$ = $1; $$.integer = Expression::ROTATE_LEFT; }
+|	ROTATE_R { $$ = $1; $$.integer = Expression::ROTATE_RIGHT; }
 
 
 definable-operator:
 	
-	INCREMENT { $$ = $1; $1.integer = Expression::PRE_INCREMENT; }
-|	DECREMENT { $$ = $1; $1.integer = Expression::PRE_DECREMENT; }
-|	'+' { $$ = $1; $1.integer = Expression::PLUS; }
-|	'-' { $$ = $1; $1.integer = Expression::MINUS; }
-|	'!' { $$ = $1; $1.integer = Expression::NOT; }
-|	'&' { $$ = $1; $1.integer = Expression::AND; }
-|	'*' { $$ = $1; $1.integer = Expression::XOR; }
-|	'|' { $$ = $1; $1.integer = Expression::OR; }
-|	SHIFT_L { $$ = $1; $1.integer = Expression::SHIFT_L; }
-|	SHIFT_R { $$ = $1; $1.integer = Expression::SHIFT_R; }
-|	ROTATE_L { $$ = $1; $1.integer = Expression::ROTATE_L; }
-|	ROTATE_R { $$ = $1; $1.integer = Expression::ROTATE_R; }
+	INCREMENT { $$ = $1; $$.integer = Expression::PRE_INCREMENT; }
+|	DECREMENT { $$ = $1; $$.integer = Expression::PRE_DECREMENT; }
+|	'+' { $$ = $1; $$.integer = Expression::PLUS; }
+|	'-' { $$ = $1; $$.integer = Expression::MINUS; }
+|	'!' { $$ = $1; $$.integer = Expression::NOT; }
+|	'&' { $$ = $1; $$.integer = Expression::AND; }
+|	'*' { $$ = $1; $$.integer = Expression::XOR; }
+|	'|' { $$ = $1; $$.integer = Expression::OR; }
+|	SHIFT_L { $$ = $1; $$.integer = Expression::SHIFT_LEFT; }
+|	SHIFT_R { $$ = $1; $$.integer = Expression::SHIFT_RIGHT; }
+|	ROTATE_L { $$ = $1; $$.integer = Expression::ROTATE_LEFT; }
+|	ROTATE_R { $$ = $1; $$.integer = Expression::ROTATE_RIGHT; }
 
 
 else-block:
@@ -903,7 +886,7 @@ else-block:
 
 longs:
 	
-	LONG { $$ = 1; $1.location; }
+	LONG { $$ = 1; location_buffer = $1.location; }
 |	longs LONG { $$ += 1; }
 
 
@@ -948,5 +931,3 @@ void caterror (const char* message)
 {
 	fprintf (stderr, "Parse error: %s\n", message);
 }
-
-CATSTYPE () {}

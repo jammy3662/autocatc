@@ -12,7 +12,7 @@ Symbol* Scope::lookup (Label path)
 	// TODO
 }
 
-void Scope::insert (Symbol* symbol)
+fast Scope::insert (Symbol* symbol)
 {
 	// TODO
 }
