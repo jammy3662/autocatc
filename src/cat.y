@@ -1,6 +1,7 @@
 %{
 
-/* Prologue */
+// ================================
+// Prologue //
 
 #include "cat.h"
 #include "symbol.hh"
@@ -19,7 +20,8 @@ Location location_buffer;
 
 %}
 
-/* Declarations (Bison) */
+// ================================
+// Declarations (Bison) //
 
 %code requires
 {
@@ -32,6 +34,8 @@ Location location_buffer;
 
 %glr-parser
 %debug
+
+// ================================
 
 %token <token>  '(' ')' '[' ']' '{' '}'
 %token <token>  '!' '#' '$' '%' '&' '*' '+' ','
@@ -78,7 +82,8 @@ Location location_buffer;
 %token <token>  CASE DEFAULT
 %token <token>	AS
 
-/* Token Precedence */
+// ================================
+// Token Precedence //
 
 %nonassoc EMPTY
 
@@ -116,42 +121,7 @@ Location location_buffer;
 %nonassoc NAME
 %nonassoc ATOMIC
 
-%union
-{
-	Token token;
-	
-	CatLang::Label label;
-	
-	CatLang::Symbol::Qualifiers qualifiers;
-	CatLang::Type::Pointer::Indirection pointer;
-	CatLang::Type::Numeric basic_type;
-	CatLang::Template templates;
-	
-	CatLang::Symbol* symbol;
-	CatLang::Iterator* iterator;
-	
-	Array <CatLang::Symbol*> symbols;
-	Array <CatLang::Label> labels;
-	Array <CatLang::Variable> variables;
-	
-	Array <CatLang::Expression*> dimensionality;
-	
-	CatLang::Type type_base;
-	CatLang::Type* type;
-	CatLang::Scope scope;
-	CatLang::Scope* scope_ptr;
-	opt <CatLang::Scope> scope_opt;
-	CatLang::Variable variable;
-	CatLang::Function function;
-	CatLang::Expression* expression;
-	CatLang::Expression range [2];
-	
-	Array <CatLang::Type::Pointer::Indirection>
-	indirection;
-	
-	bool boolean;
-	int integer;
-}
+// ================================
 
 %type <scope> block scope braced-scope
 %type <scope> enum-scope
@@ -207,11 +177,53 @@ Location location_buffer;
 
 %type <token> semicolon colon
 
+// ================================
+// lval definition
+
+%union
+{
+	Token token;
+	
+	CatLang::Label label;
+	
+	CatLang::Symbol::Qualifiers qualifiers;
+	CatLang::Type::Pointer::Indirection pointer;
+	CatLang::Type::Numeric basic_type;
+	CatLang::Template templates;
+	
+	CatLang::Symbol* symbol;
+	CatLang::Iterator* iterator;
+	
+	Array <CatLang::Symbol*> symbols;
+	Array <CatLang::Label> labels;
+	Array <CatLang::Variable> variables;
+	
+	Array <CatLang::Expression*> dimensionality;
+	
+	CatLang::Type type_base;
+	CatLang::Type* type;
+	CatLang::Scope scope;
+	CatLang::Scope* scope_ptr;
+	opt <CatLang::Scope> scope_opt;
+	CatLang::Variable variable;
+	CatLang::Function function;
+	CatLang::Expression* expression;
+	
+	Array <CatLang::Type::Pointer::Indirection>
+	indirection;
+	
+	bool boolean;
+	int integer;
+}
+
+// ================================
+
 %start block
 
 %%
 
-/* Grammar Rules */
+// ================================
+// Grammar Rules //
 
 block:
 

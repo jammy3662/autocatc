@@ -7,7 +7,7 @@ template <typename T>
 struct opt
 {
 	T value;
-	byte valid = false;
+	byte valid;
 	
 	T operator = (T Value)
 	{ valid = true; return (value = Value); }

@@ -6,9 +6,9 @@
 template <typename T>
 struct Array
 {
-	fast count = 0, available = 0;
+	fast count, available;
 	
-	T* ptr = 0;
+	T* ptr;
 	
 	fast append (T next); // returns # of new elements allocated
 	void allocate (fast num);

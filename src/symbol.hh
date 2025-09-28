@@ -39,7 +39,7 @@ struct Label: Tag
 struct Reference: Tag
 {
 	Label path;
-	struct Symbol* ptr = 0;
+	struct Symbol* ptr;
 	
 	Reference () = default;
 	
@@ -69,7 +69,7 @@ struct Type: Tag
 	enum Representation
 	{ DEFAULT, SIGNED, UNSIGNED, REAL, IMAGINARY, COMPLEX };
 	
-	DataType data;
+	fast data;
 	
 	unsigned byte
 	locality: 1,
@@ -85,13 +85,14 @@ struct Type: Tag
 
 struct Type::Numeric: Type
 {
-	fast longness = 0;
+	fast longness;
 	
 	enum Scalar
 	{ BIT, CHAR, BYTE, SHORT, INT, LONG,
 		FLOAT, DOUBLE, };
 	unsigned byte scalar: 3;
 	
+	Numeric () = default;
 	Numeric (Location, fast scalar, fast longness = 0);
 };
 
@@ -121,7 +122,10 @@ struct Type::Function: Type
 	Scope* body;
 };
 
-struct Template: Array<Reference>, Tag {};
+struct Template: Array<Reference>, Tag
+{
+	Template () = default;
+};
 
 struct Symbol: Tag
 {
@@ -143,22 +147,22 @@ struct Symbol: Tag
 	
 	Template templates;
 	
-	fast kind = NONE;
-	Scope* parent = 0;
+	fast kind;
+	Scope* parent;
 	
 	Reference target; // desired path to symbol
 	
 	Array <Log> logs;
 	
-	char* comment = 0;
+	char* comment;
 	
 	struct Qualifiers
 	{
-		unsigned byte
-		is_local: 1, // hidden from outer scopes
-		is_static: 1, // only one instance of symbol
-		is_extern: 1, // allocate in parent's container, not in parent
-		is_inline: 1; // copy definition directly into its scope
+		bool
+		is_local, // hidden from outer scopes
+		is_static, // only one instance of symbol
+		is_extern, // allocate in parent's container, not in parent
+		is_inline; // copy definition directly into its scope
 	}
 	qualifiers;
 };
@@ -179,7 +183,7 @@ struct Instance
 {
 	Array <Expression*> dimensionality;
 	opt <Expression*> initializer;
-	bool variadic = false;
+	bool variadic;
 };
 
 struct Variable: Symbol, Instance
@@ -204,8 +208,9 @@ struct Scope: Symbol
 		
 		IF, SWITCH,
 		WHILE, DO_WHILE, FOR
-	}
-	kind;
+	};
+	
+	fast kind;
 	
 	Array <Symbol*>
 	members;
@@ -213,11 +218,11 @@ struct Scope: Symbol
 	fields; // index into members
 	
 	std::unordered_multimap <std::string, fast>*
-	nametable = new std::unordered_multimap <std::string, fast>; // index into members by name
+	nametable; // index into members by name
 	
 	// for a given scope, there can only be one definition per operator/opcode
 	std::unordered_map <fast, Operator*>*
-	operators = new std::unordered_map <fast, Operator*>;
+	operators;
 	
 	Iterator*
 	iterator;
@@ -304,6 +309,7 @@ struct Function: Symbol
 	Scope parameters;
 	opt <Scope*> body;
 	
+	Function () = default;
 	Function (Location, Function);
 	Function (Location, Type*, Reference name, Scope parameters);
 	Function (Location, Type*, Reference name, Scope parameters, Scope body);
