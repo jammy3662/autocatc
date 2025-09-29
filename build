@@ -22,7 +22,6 @@ flex --nounput $SRC/cat.l && \
 
 cd ..
 
-#echo "\
 unbuffer \
 clang++ $CLANG_FLAGS \
 	-I src -I generated \
@@ -32,4 +31,3 @@ clang++ $CLANG_FLAGS \
 	-o autocatc \
 	2>&1 \
 	| grep -v 'In file included'
-#"

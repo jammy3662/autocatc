@@ -139,9 +139,7 @@ Location location_buffer;
 %type <token>	definable-operator
 
 %type <label> label
-%type <type> type
-%type <type_base> datatype
-%type <basic_type> basic-type
+%type <type> type datatype basic-type
 %type <integer> longs
 %type <integer> long
 
@@ -151,7 +149,7 @@ Location location_buffer;
 %type <token> literal meta
 
 %type <qualifiers> qualifiers
-%type <type_base> type-qualifiers type-qualifier
+%type <type_qualifiers> type-qualifiers type-qualifier
 %type <variables> variables
 %type <variable> variable
 %type <variables> instances
@@ -187,7 +185,8 @@ Location location_buffer;
 	CatLang::Label label;
 	
 	CatLang::Symbol::Qualifiers qualifiers;
-	CatLang::Type::Pointer::Indirection pointer;
+	CatLang::Type::Qualifiers type_qualifiers;
+	CatLang::Type::Pointer::Indirection::Pointer pointer;
 	CatLang::Type::Numeric basic_type;
 	CatLang::Template templates;
 	
@@ -209,7 +208,7 @@ Location location_buffer;
 	CatLang::Function function;
 	CatLang::Expression* expression;
 	
-	Array <CatLang::Type::Pointer::Indirection>
+	Array <CatLang::Type::Pointer::Indirection::Pointer>
 	indirection;
 	
 	bool boolean;
@@ -353,7 +352,7 @@ statement:
 	
 |	OPERATOR definable-operator tuple scope
 	{
-		
+		$$ = new Operator ($1.location, $2.integer, $3, $4);
 	}
 	
 |	template qualifiers function
@@ -411,18 +410,14 @@ module:
 	
 	qualifiers struct-module-union label scope
 	{
-		$$ = new Module ($2.location, (Module::Form) $2.integer, $3);
+		$$ = new Module ($2.location, (Module::Form) $2.integer, $3, $4);
 		$$->qualifiers = $1;
-		
-		// TODO: find target scope using path label
 	}
 	
 |	qualifiers ENUM label enum-scope
 	{
 		$$ = new Enum ($2.location, $3, $4);
 		$$->qualifiers = $1;
-		
-		// TODO: find target scope using path label
 	}
 
 
@@ -616,27 +611,15 @@ type:
 	
 	type-qualifiers datatype indirection
 	{
-		// TODO
-		/*
-		Type* type = new <Type> ();
-		
-		int idx = 0;
-		for (; idx < $3.count; ++idx);
+		if ($3.count > 0)
 		{
-			type->data = Type::POINTER;
-			type->pointer = $3.pointers [idx];
-			type->pointer.pointee = new <Type> ();
-			
-			type = type->pointer.pointee;
+			$$ = new Type::Pointer
+			(location_buffer, $2, $3);
 		}
+		else
+			$$ = $2;
 		
-		*type = *$2; free ($2);
-		
-		if (type->data is Type::NUMERIC)
-		{
-			type->number.representation = $1;
-		}
-		*/
+		$$->qualifiers = $1;
 	}
 
 
@@ -646,17 +629,18 @@ datatype:
 	
 |	tuple
 	{
-		// TODO
+		$$ = new Type::Module
+		($1.location, new Module ($1.location, $1));
 	}
 	
 |	TYPEOF label
 	{
-		// TODO
+		$$ = new Type::Meta ($1.location, $2);
 	}
 	
 |	label
 	{
-		// TODO
+		$$ = new Type::Module ($1.location, $1);
 	}
 
 
@@ -670,7 +654,7 @@ range-expression:
 	
 	expression TAIL expression
 	{
-		$$ = new BinaryExpression
+		$$ = new Expression::Binary
 		($1->location, $1, Expression::RANGE, $3);
 	}
 
@@ -681,31 +665,31 @@ expression:
 	
 |	meta expression %prec META
 	{
-		new MetaExpression (location_buffer, $1.integer, $2);
+		new Expression::Meta (location_buffer, $1.integer, $2);
 	}
 	
 |	prefix-operator expression %prec PREFIX
 	{
-		$$ = new UnaryExpression ($1.location, $1.integer, $2);
+		$$ = new Expression::Unary ($1.location, $1.integer, $2);
 	}
 	
 |	expression infix-operator expression %prec INFIX
 	{
-		$$ = new BinaryExpression ($1->location, $1, $2.integer, $3);
+		$$ = new Expression::Binary ($1->location, $1, $2.integer, $3);
 	}
 	
 |	expression postfix-operator %prec POSTFIX
 	{
-		$$ = new UnaryExpression ($1->location, $2.integer, $1);
+		$$ = new Expression::Unary ($1->location, $2.integer, $1);
 	}
 	
 |	expression ',' expression %prec ','
 	{
-		ListExpression* list;
+		Expression::List* list;
 		
 		if ($$->opcode isnt Expression::LIST)
 		{
-			list = new ListExpression ($1->location); 
+			list = new Expression::List ($1->location); 
 			list->expressions.append ($1);
 			list->expressions.append ($3);
 			$$ = list;
@@ -713,17 +697,14 @@ expression:
 		
 		else
 		{
-			list = (ListExpression*) ($$ = $1);
+			list = (Expression::List*) ($$ = $1);
 			list->expressions.append ($3);
 		}
 	}
 	
 |	expression expression %prec INFIX
 	{
-		// TODO: function call OR multiplication
-		// note that function calls with empty arguments are matched by the variable access (value) expression
-		
-		$$ = new PairExpression
+		$$ = new Expression::Pair
 		($1->location, $1, $2);
 	}
 
@@ -737,9 +718,9 @@ atomic:
 
 value:
 	
-	label %prec NAME { $$ = new ReferenceExpression ($1.location, $1); }
+	label %prec NAME { $$ = new Expression::Ref ($1.location, $1); }
 	
-|	literal { $$ = new LiteralExpression ($1.location, $1.text); }
+|	literal { $$ = new Expression::Literal ($1.location, $1.text); }
 
 
 indirection:
@@ -762,21 +743,21 @@ pointer:
 basic-type:
 	
 	BIT
-	{ $$ = Type::Numeric ($1.location, Type::Numeric::BIT); }
+	{ $$ = new Type::Numeric ($1.location, Type::Numeric::BIT); }
 |	CHAR
-	{ $$ = Type::Numeric ($1.location, Type::Numeric::CHAR); }
+	{ $$ = new Type::Numeric ($1.location, Type::Numeric::CHAR); }
 |	BYTE
-	{ $$ = Type::Numeric ($1.location, Type::Numeric::BYTE); }
+	{ $$ = new Type::Numeric ($1.location, Type::Numeric::BYTE); }
 |	SHORT int
-	{ $$ = Type::Numeric ($1.location, Type::Numeric::SHORT); }
+	{ $$ = new Type::Numeric ($1.location, Type::Numeric::SHORT); }
 |	longs int
-	{ $$ = Type::Numeric (location_buffer, Type::Numeric::LONG, $1); }
+	{ $$ = new Type::Numeric (location_buffer, Type::Numeric::LONG, $1); }
 |	INT
-	{ $$ = Type::Numeric ($1.location, Type::Numeric::INT); }
+	{ $$ = new Type::Numeric ($1.location, Type::Numeric::INT); }
 |	FLOAT
-	{ $$ = Type::Numeric ($1.location, Type::Numeric::FLOAT); }
+	{ $$ = new Type::Numeric ($1.location, Type::Numeric::FLOAT); }
 |	long DOUBLE
-	{ $$ = Type::Numeric (location_buffer, Type::Numeric::DOUBLE, $1); }
+	{ $$ = new Type::Numeric (location_buffer, Type::Numeric::DOUBLE, $1); }
 
 
 qualifiers:
@@ -789,7 +770,7 @@ qualifiers:
 
 type-qualifiers:
 	
-	%empty { $$ = {}; }
+	%empty { $$ = {}; location_buffer = current.location; }
 	
 |	type-qualifiers type-qualifier
 	{
@@ -819,10 +800,10 @@ struct-module-union:
 
 meta:
 
-	SIZEOF { $$ = $1; $$.integer = MetaExpression::SIZEOF; location_buffer = $1.location; }
-|	COUNTOF { $$ = $1; $$.integer = MetaExpression::COUNTOF; location_buffer = $1.location; }
-|	NAMEOF { $$ = $1; $$.integer = MetaExpression::NAMEOF; location_buffer = $1.location; }
-|	STRINGOF { $$ = $1; $$.integer = MetaExpression::STRINGOF; location_buffer = $1.location; }
+	SIZEOF { $$ = $1; $$.integer = Expression::Meta::SIZEOF; location_buffer = $1.location; }
+|	COUNTOF { $$ = $1; $$.integer = Expression::Meta::COUNTOF; location_buffer = $1.location; }
+|	NAMEOF { $$ = $1; $$.integer = Expression::Meta::NAMEOF; location_buffer = $1.location; }
+|	STRINGOF { $$ = $1; $$.integer = Expression::Meta::STRINGOF; location_buffer = $1.location; }
 
 
 prefix-operator:

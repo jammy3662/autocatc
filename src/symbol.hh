@@ -1,6 +1,7 @@
 #ifndef SYMBOL_DOT_H
 #define SYMBOL_DOT_H
 
+#include <bit>
 #include <sstream>
 #include <unordered_map>
 
@@ -50,78 +51,6 @@ struct Reference: Tag
 	{ ptr = symbol; }
 };
 
-struct Type: Tag
-{
-	enum DataType
-	{
-		//- Special types -//
-		NONE	= -1,
-		VOID = 0,
-		NUMERIC,
-		POINTER,
-		ARRAY,
-		FUNCTION,
-		USER /* tuple, struct, union, or enum */,
-		META,
-		UNRESOLVED, // type defined elsewhere
-	};
-	
-	enum Representation
-	{ DEFAULT, SIGNED, UNSIGNED, REAL, IMAGINARY, COMPLEX };
-	
-	fast data;
-	
-	unsigned byte
-	locality: 1,
-	staticness: 1,
-	constness: 1,
-	representation: 3;
-	
-	struct Numeric;
-	struct Pointer;
-	struct Array;
-	struct Function;
-};
-
-struct Type::Numeric: Type
-{
-	fast longness;
-	
-	enum Scalar
-	{ BIT, CHAR, BYTE, SHORT, INT, LONG,
-		FLOAT, DOUBLE, };
-	unsigned byte scalar: 3;
-	
-	Numeric () = default;
-	Numeric (Location, fast scalar, fast longness = 0);
-};
-
-struct Type::Pointer: Type
-{
-	Type* underlying_type;
-	
-	fast num_pointers = 0;
-	
-	struct Indirection
-	{ char constness: 1, c_style: 1; }
-	indirection [8];
-	
-	Pointer (Location, Type*, ::Array <Indirection>);
-};
-
-struct Type::Array: Type
-{
-	Type* contents;
-	struct Expression* count;
-};
-
-struct Type::Function: Type
-{
-	Type* returned;
-	Type* parameters;
-	Scope* body;
-};
-
 struct Template: Array<Reference>, Tag
 {
 	Template () = default;
@@ -167,6 +96,104 @@ struct Symbol: Tag
 	qualifiers;
 };
 
+struct Type: Tag
+{
+	enum DataType
+	{
+		//- Special types -//
+		NONE	= -1,
+		VOID = 0,
+		NUMERIC,
+		POINTER,
+		ARRAY,
+		FUNCTION,
+		USER /* tuple, struct, union, or enum */,
+		META,
+		UNRESOLVED, // type defined elsewhere
+	};
+	
+	enum Representation
+	{ DEFAULT, SIGNED, UNSIGNED, REAL, IMAGINARY, COMPLEX };
+	
+	fast data;
+	
+	struct Qualifiers
+	{
+		unsigned byte
+		locality: 1,
+		staticness: 1,
+		constness: 1,
+		representation: 3;
+	}
+	qualifiers;
+	
+	struct Numeric;
+	struct Pointer;
+	struct Array;
+	struct Function;
+	struct Module;
+	struct Meta;
+};
+
+struct Type::Numeric: Type
+{
+	fast longness;
+	
+	enum Scalar
+	{ BIT, CHAR, BYTE, SHORT, INT, LONG,
+		FLOAT, DOUBLE, };
+	unsigned byte scalar: 3;
+	
+	Numeric () = default;
+	Numeric (Location, fast scalar, fast longness = 0);
+};
+
+struct Type::Pointer: Type
+{
+	Type* underlying_type;
+	
+	struct Indirection
+	{
+		byte num_pointers;
+	
+		struct Pointer
+		{ 
+			char constness: 1, c_style: 1;
+		}
+		pointers [7];
+	}
+	indirection;
+	
+	Pointer (Location, Type*, ::Array <Indirection::Pointer>);
+};
+
+struct Type::Array: Type
+{
+	Type* contents;
+	struct Expression* count;
+};
+
+struct Type::Function: Type
+{
+	Type* returned;
+	Type* parameters;
+	Scope* body;
+};
+
+struct Type::Module: Type
+{
+	Reference definition;
+	
+	Module (Location, Reference);
+};
+
+struct Type::Meta: Type
+{
+	Reference symbol;
+	
+	Meta (Location, Reference);
+};
+
 struct Expression: Symbol
 {
 	enum Opcode
@@ -177,6 +204,15 @@ struct Expression: Symbol
 	Type* type;
 	fast opcode;
 	bool constant = false;
+	
+	struct Meta;
+	struct Pair;
+	struct Call;
+	struct Ref;
+	struct Literal;
+	struct Unary;
+	struct Binary;
+	struct List;
 };
 
 struct Instance
@@ -275,7 +311,8 @@ struct Module: Scope
 {
 	 enum Form { STRUCT, MODULE, UNION };
 	 
-	 Module (Location, fast form, Reference name);
+	 Module (Location, fast form, Reference name, Scope);
+	 Module (Location, Scope);
 	 Module (Location, Module);
 };
 
@@ -313,6 +350,13 @@ struct Function: Symbol
 	Function (Location, Function);
 	Function (Location, Type*, Reference name, Scope parameters);
 	Function (Location, Type*, Reference name, Scope parameters, Scope body);
+};
+
+struct Operator: Function
+{
+	using Opcode = Expression::Opcode;
+	
+	Operator (Location, fast opcode, Scope parameters, Scope body);
 };
 
 struct Include: Symbol, Reference
@@ -361,7 +405,7 @@ struct Return: Symbol
 	Return (Location);
 };
 
-struct MetaExpression: Expression
+struct Expression::Meta: Expression
 {
 	enum Kind
 	{ SIZEOF, COUNTOF, NAMEOF, STRINGOF }
@@ -369,43 +413,42 @@ struct MetaExpression: Expression
 	
 	Expression* expression;
 	
-	MetaExpression (Location, fast kind, Expression*);
+	Meta (Location, fast kind, Expression*);
 };
 
-struct PairExpression: Expression
+struct Expression::Pair: Expression
 {
-	PairExpression (Location, Expression*, Expression*);
+	Pair (Location, Expression*, Expression*);
 };
 
-struct CallExpression: Expression
+struct Expression::Call: Expression
 {
 	Reference function;
 	opt <Expression*> arguments;
 	
-	
-	CallExpression (Location, Reference, Expression*);
+	Call (Location, Reference, Expression*);
 };
 
-struct ReferenceExpression: Expression, Reference
+struct Expression::Ref: Expression, Reference
 {
-	ReferenceExpression (Location, Reference);
+	Ref (Location, Reference);
 };
 
-struct LiteralExpression: Expression
+struct Expression::Literal: Expression
 {
 	char* constant;
 	
-	LiteralExpression (Location, char*);
+	Literal (Location, char*);
 };
 
-struct UnaryExpression: Expression
+struct Expression::Unary: Expression
 {
 	Expression* operand;
 	
-	UnaryExpression (Location, fast opcode, Expression*);
+	Unary (Location, fast opcode, Expression*);
 };
 
-struct BinaryExpression: Expression
+struct Expression::Binary: Expression
 {
 	union
 	{
@@ -413,14 +456,14 @@ struct BinaryExpression: Expression
 		struct {Expression *left, *right;};
 	};
 	
-	BinaryExpression (Location, Expression*, fast opcode, Expression*);
+	Binary (Location, Expression*, fast opcode, Expression*);
 };
 
-struct ListExpression: Expression
+struct Expression::List: Expression
 {
 	Array <Expression*> expressions;
 	
-	ListExpression (Location);
+	List (Location);
 };
 
 }
