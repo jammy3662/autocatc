@@ -3,24 +3,24 @@
 # leave unmatched wildcards empty
 shopt -s nullglob
 
+mkdir -p generated
+cd generated
+rm -r ./*
+
+SRC="../src"
+
+
+clang -x c -E -P $SRC/cat.g4 > ./cat.g4 -Wno-invalid-pp-token
+antlr4 cat.g4
+
+cd ..
+
+exit
+
 CLANG_FLAGS="\
 -Wno-deprecated -Wunneeded-internal-declaration \
 -g3 \
 -fno-caret-diagnostics -ferror-limit=999"
-
-mkdir -p generated
-cd generated
-
-SRC="../src"
-
-bison -dt \
-	$SRC/cat.y \
-	--report=states,lookaheads,solved \
-	&&
-
-flex --nounput $SRC/cat.l && \
-
-cd ..
 
 unbuffer \
 clang++ $CLANG_FLAGS \
