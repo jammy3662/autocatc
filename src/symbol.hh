@@ -24,13 +24,14 @@ struct Tag
 struct Label: Tag
 {
 	Array <char*> names;
+	bool global; // whether to start from the root of the symbol tree
 	
 	inline
 	char* name () const {	return names.last(); } 
 	
 	Label () = default;
 	Label (Location);
-	Label (Location, char* first);
+	Label (Location, char* first, bool global);
 };
 
 /*-------------------------------------

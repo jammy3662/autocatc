@@ -4,12 +4,12 @@ namespace CatLang {
 
 Symbol* Scope::find (Label path)
 {
-	// TODO
+	// search this scope recursively
 }
 
 Symbol* Scope::lookup (Label path)
 {
-	// TODO
+	// find anywhere in the symbol table
 }
 
 fast Scope::insert (Symbol* symbol)

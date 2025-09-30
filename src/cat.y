@@ -91,6 +91,8 @@ Location location_buffer;
 
 %nonassoc ';' ','
 
+%left '.'
+
 %right '='
 
 %left OR
@@ -138,7 +140,7 @@ Location location_buffer;
 
 %type <token>	definable-operator
 
-%type <label> label
+%type <label> label label-header
 %type <type> type datatype basic-type
 %type <integer> longs
 %type <integer> long
@@ -173,7 +175,7 @@ Location location_buffer;
 
 %type <iterator> iterator c-iterator iterator-define
 
-%type <token> semicolon colon
+%type <token> colon semicolon
 
 // ================================
 // lval definition
@@ -423,7 +425,7 @@ module:
 
 scope:
 
-	colon block ELLIPSES { $$ = Scope ($1.location, $2); }
+	colon block ELLIPSES { $$ = Scope (location_buffer, $2); }
 |	';' { $$ = Scope ($1.location); }
 |	braced-scope
 
@@ -436,7 +438,7 @@ braced-scope:
 enum-scope:
 	
 	'{' enum-block '}' { $$ = Enum ($1.location, $2); }
-|	colon enum-block ELLIPSES { $$ = Enum ($1.location, $2); }
+|	colon enum-block ELLIPSES { $$ = Enum (location_buffer, $2); }
 |	';' { $$ = Enum ($1.location); }
 
 
@@ -506,15 +508,28 @@ c-iterator:
 
 label:
 	
-	NAME
+	label-header
 	{
-		$$ = Label ($1.location, $1.text);
+		$$ = $1;
 	}
 	
-|	label '.' NAME
+|	label '.' NAME %prec '.'
 	{
 		$$ = $1;
 		$$.names.append ($3.text);
+	}
+
+
+label-header:
+	
+	NAME %prec EMPTY
+	{
+		$$ = Label (location_buffer, $1.text, false);
+	}
+	
+|	'.' NAME %prec ','
+	{
+		$$ = Label (location_buffer, $1.text, true);
 	}
 
 
@@ -908,11 +923,11 @@ literal:
 
 
 semicolon:
-	%empty %prec EMPTY { $$ = current.token; }
+	%empty %prec EMPTY {$$ = current.token;}
 |	';'
 
 colon:
-	%empty %prec EMPTY { $$ = current.token; }
+	%empty %prec EMPTY {$$ = current.token;}
 |	':'
 
 
