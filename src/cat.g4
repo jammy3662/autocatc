@@ -82,21 +82,24 @@ statement:
 |	'for' iterator scope
 |	'iterator' iterator_define ';'?
 |	'operator' definable_operator tuple scope
-|	generics qualifier* function
 |	line
+|	';'
 ;
 
 line:
 
-	'alias' NAME '=' label ';'?
+	note line
+|	'alias' NAME '=' label ';'?
 |	'macro' NAME  .*? 'macro!'
-|	'include' label ';'?
+|	'include' label ('as' NAME)? ';'?
 |	qualifier* braced_scope
+|	generics? qualifier* module (instances ';'?)?
+|	generics? qualifier* function
 |	qualifier* variables ';'?
-|	qualifier* module (instances ';'?)?
 |	expression ';'?
-|	';'
 ;
+
+note: 'note' STR_CONST+;
 
 module:
 
@@ -136,7 +139,7 @@ iterator_define:
 |	expression
 ;
 
-c_iterator: line ';' expression ';' line;
+c_iterator: line expression ';' line;
 
 label: '.'? NAME ('.' NAME)*;
 
