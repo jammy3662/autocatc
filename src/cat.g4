@@ -57,6 +57,10 @@ STR_CONST:   'L'? QQ (BS QQ | NQQ)* QQ;
 
 NAME: (LETTER | SPACER) (LETTER | DIGIT | SPACER)*;
 
+LINE_COMMENT: '//' ~[\r\n]* -> channel (HIDDEN);
+
+BLOCK_COMMENT: '/*' .*? '*/' -> channel (HIDDEN);
+
 start: EOF block;
 
 block: statement+;

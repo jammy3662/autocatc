@@ -5,7 +5,6 @@ shopt -s nullglob
 
 mkdir -p generated
 cd generated
-rm -r ./*
 
 SRC="../src"
 
@@ -13,21 +12,33 @@ SRC="../src"
 clang -x c -E -P $SRC/cat.g4 > ./cat.g4 -Wno-invalid-pp-token
 antlr4 cat.g4
 
+ln -s /usr/include/antlr4-runtime .
+
 cd ..
 
-exit
-
 CLANG_FLAGS="\
--Wno-deprecated -Wunneeded-internal-declaration \
+-Wno-deprecated -Wno-unneeded-internal-declaration \
+-fno-caret-diagnostics -ferror-limit=999 \
+-std=c++17 \
 -g3 \
--fno-caret-diagnostics -ferror-limit=999"
+"
+
+GCC_FLAGS="\
+-Wno-deprecated -Wno-attributes \
+-fno-diagnostics-show-caret \
+-fdiagnostics-urls=never \
+-fdiagnostics-path-format=inline-events \
+-std=c++17 \
+-g3 \
+"
 
 unbuffer \
-clang++ $CLANG_FLAGS \
-	-I src -I generated \
-	generated/lex.cat.c \
-	generated/cat.tab.c \
+g++ $GCC_FLAGS \
+	-I src -I generated -I generated/antlr4-runtime \
+	generated/*.cpp \
 	src/*.cc \
 	-o autocatc \
+	-lantlr4-runtime \
 	2>&1 \
-	| grep -v 'In file included'
+	| grep -v 'In file included' \
+	| grep -v 'from'

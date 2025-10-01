@@ -58,6 +58,7 @@ typedef uint64_t uint64;
 #define nonzero 0 !=
 #define notzero != 0
 #define zero 0 ==
+#define no !
 
 #ifdef LONG_LONG_MAX
 	#define most long long
