@@ -1,2 +1,0 @@
-# script to list linker errors
-unbuffer ./build | tac | grep 'undefined reference' | sed -r 's/.*(undefined reference to .*)\(.*/\1/'

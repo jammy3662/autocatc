@@ -5,7 +5,7 @@
 #include <sstream>
 #include <unordered_map>
 
-#include "token.hh"
+//#include "token.hh"
 #include "log.hh"
 
 #include "cext/optional.hh"

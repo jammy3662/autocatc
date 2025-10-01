@@ -7,7 +7,13 @@
 #ifndef LOG_H
 #define LOG_H
 
-#include "token.hh"
+namespace CatLang {
+
+struct Location
+{
+	short line, column;
+	char* source_file;
+};
 
 struct Log
 {
@@ -19,4 +25,5 @@ struct Log
 	severity;
 };
 
+}
 #endif
