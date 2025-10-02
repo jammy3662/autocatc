@@ -1,10 +1,13 @@
 #include <stdio.h>
 #include <string.h>
+#include <iostream>
 
+#include <antlr4-runtime/antlr4-runtime.h>
 #include "catLexer.h"
 #include "catParser.h"
 #include "catListener.h"
 
+#include "cext/optional.hh"
 #include "cext/ints.hh"
 
 #define PROGRAM_NAME "autocatc"
@@ -12,7 +15,7 @@
 int test_scanner();
 int (*test)() = test_scanner;
 
-FILE* in = stdin;
+std::ifstream in;
 
 int main (int argc, char** argv)
 {
@@ -48,21 +51,19 @@ int main (int argc, char** argv)
 			if (inputs [i] isnt FILE) continue;
 			else files_input = true;
 			
-			in = fopen (argv[i], "r");
+			in.open (argv[i], std::ios_base::in);
 			
-			if (no in)
+			if (no in or not in.is_open())
 			{
 				fprintf (stderr, "File couldn't open (%s)\n", argv[i]);
 				return 1;
 			}
 			
-			printf ("-- Parsing '%s' --\n", argv[i]);
-			test();
+			test ();
 		}
 	}
 	if (zero files_input)
 	{
-		in = stdin;
 		printf (PROGRAM_NAME " - Reading from standard input\n");
 		return test();
 	}
@@ -75,8 +76,33 @@ int test_scanner()
 	int result;
 	
 	// TODO: visit the parse tree
+	using namespace antlr4;
 	
-	if (in isnt stdin) fclose (in);
+	ANTLRInputStream input;
+	
+	printf ("Okay...\n");
+	
+	if (in.is_open())
+	
+		printf ("Opened input file.\n"),
+		input.load (in),
+		printf ("Opened ANTLR input stream.\n");
+	
+	else
+	
+		printf ("Defaulting to stdin for input,,,\n"),
+		input.load (std::cin);
+	
+	catLexer lexer (&input);
+	CommonTokenStream tokens (&lexer);
+	
+	tokens.fill ();
+	
+	for (auto token: tokens.getTokens())
+	{
+		printf ("%s\n", token->getText().c_str());
+	}
+	
 	
 	return result;
 }

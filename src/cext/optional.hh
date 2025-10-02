@@ -12,6 +12,9 @@ struct opt
 	T operator = (T Value)
 	{ valid = true; return (value = Value); }
 	
+	bool operator ! ()
+	{ return not valid; }
+	
 	operator T& () const
 	{ return value; }
 };

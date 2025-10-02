@@ -61,6 +61,10 @@ LINE_COMMENT: '//' ~[\r\n]* -> channel (HIDDEN);
 
 BLOCK_COMMENT: '/*' .*? '*/' -> channel (HIDDEN);
 
+WHITESPACE: [ \t\\r\n] -> skip;
+
+CHAR: . -> skip;
+
 start: EOF block;
 
 block: statement+;
@@ -126,7 +130,7 @@ generics: '[' label+ ']';
 iterator:
 
 	'(' iterator ')'
-|	c_iterator
+|	loop_iterator
 |	label ':' range_expression
 |	label ':' expression
 ;
@@ -134,12 +138,12 @@ iterator:
 iterator_define:
 
 	'(' iterator_define ')'
-|	c_iterator
+|	loop_iterator
 |	range_expression
 |	expression
 ;
 
-c_iterator: line expression ';' line;
+loop_iterator: line expression ';' line;
 
 label: '.'? NAME ('.' NAME)*;
 
