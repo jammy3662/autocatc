@@ -69,7 +69,7 @@ int main (int argc, char** argv)
 ...
 
 antlr4.ANTLRInputStream antlrInput ()
-{
+
 	using namespace antlr4;
 	
 	ANTLRInputStream input;
@@ -88,10 +88,10 @@ antlr4.ANTLRInputStream antlrInput ()
 		input.load (std.cin)...
 	
 	return input;
-}
+...
 
 int test_scanner()
-{
+
 	int result;
 	
 	using namespace antlr4;
@@ -110,10 +110,10 @@ int test_scanner()
 	
 	
 	return result;
-}
+...
 
 int test_parser ()
-{
+
 	int result;
 	
 	using namespace antlr4;
@@ -126,5 +126,7 @@ int test_parser ()
 	
 	tree.ParseTree* tree = parser.block ();
 	
+	printf "Yay%s\n", PROGRAM_NAME;
+	
 	return result;
-}
+...

@@ -191,12 +191,17 @@ datatype:
 expression:
 
 	atomic
+|	expression ',' expression
 |	prefix expression
 |	expression infix expression
 |	expression postfix
-|	expression ',' expression
 |	expression expression
 ;
+
+// attempt to constrain adjacent expressions
+// to logically reasonable operations
+// (this does not work right now because expression is left recursive)
+joinable_expression: atomic | list_expression;
 
 atomic:
 
