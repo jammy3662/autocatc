@@ -31,7 +31,7 @@ LETTER: [a-zA-Z];
 fragment
 NIBBLE: [a-fA-F0-9];
 
-#define SCI ([eE] SIGN DIGIT+)
+#define SCI ([eE] SIGN DIGIT*)
 
 #define F_SUFFIX [fFlL]
 #define I_SUFFIX [uUlL]
@@ -39,12 +39,12 @@ NIBBLE: [a-fA-F0-9];
 #define HEX ( '0'[xX]  (NIBBLE | SPACER)+ )
 #define OCT ( '0'[oO]? (DIGIT  | SPACER)+ )
 #define BIN ( '0'[bB]  (DIGIT  | SPACER)+ )
-#define HOL ( DIGIT (DIGIT | SPACER)+	)
+#define HOL ( DIGIT (DIGIT | SPACER)*	)
 
 #define DEC \
 ( \
 	(HOL? '.' HOL)  \
-| (HOL  '.' HOL?) \
+|	(HOL  '.' HOL?) \
 )
 
 INT_CONST:   SIGN? (HEX | OCT | BIN | HOL) I_SUFFIX?;
@@ -61,13 +61,14 @@ LINE_COMMENT: '//' ~[\r\n]* -> channel (HIDDEN);
 
 BLOCK_COMMENT: '/*' .*? '*/' -> channel (HIDDEN);
 
+L_PAREN: '(';
+
 WHITESPACE: [ \t\\r\n] -> skip;
 
 CHAR: . -> skip;
 
-start: EOF block;
-
-block: statement+;
+// .*? means on error, abort and start new statement
+block: (statement .*?)*;
 
 statement:
 
@@ -79,7 +80,7 @@ statement:
 |	'goto' NAME ';'?
 |	'return' expression? ';'?
 |	'if' expression scope ('else' scope)?
-| 'switch' expression scope
+|	'switch' expression scope
 |	'while' expression scope
 |	'do' 'while' expression scope
 |	'do' scope 'while' expression ';'?
@@ -87,23 +88,25 @@ statement:
 |	'iterator' iterator_define ';'?
 |	'operator' definable_operator tuple scope
 |	line
-|	';'
 ;
 
 line:
 
 	note line
 |	'alias' NAME '=' label ';'?
-|	'macro' NAME  .*? 'macro!'
+|	'macro' NAME  .*? '#'
 |	'include' label ('as' NAME)? ';'?
-|	qualifier* braced_scope
 |	generics? qualifier* module (instances ';'?)?
 |	generics? qualifier* function
 |	qualifier* variables ';'?
 |	expression ';'?
+|	stack_frame
+|	';'
 ;
 
 note: 'note' STR_CONST+;
+
+stack_frame: qualifier* braced_scope;
 
 module:
 
@@ -114,7 +117,8 @@ module:
 scope:
 
 	braced_scope
-|	':'? block '...'
+|	':'? block ('...' | EOF)
+|	braced_scope block ('...' | EOF )
 ;
 
 braced_scope: '{' block '}';
@@ -122,7 +126,7 @@ braced_scope: '{' block '}';
 enum_scope:
 
 	'{'  instances? '}'
-|	':'? instances? '...'
+|	':'? instances? ('...' | EOF)
 ;
 
 generics: '[' label+ ']';
@@ -149,11 +153,15 @@ label: '.'? NAME ('.' NAME)*;
 
 variable: type instance;
 
-variables: type instances;
+variables:
+
+	// prevent parsing functions as variables
+	{_input->LA (1) != catParser::L_PAREN}?
+	type instances;
 
 instances: instance (',' instance)*;
 
-instance: label dimensionality (initializer | '..');
+instance: label dimensionality (initializer | '..')?;
 
 dimensionality: ('[' expression ']')*;
 
@@ -165,11 +173,16 @@ tuple: '(' parameters? ')';
 
 parameters: variable (',' variable)*;
 
-type: type_qualifier* datatype pointer*;
+type:
+
+	type_qualifier* datatype pointer*
+|	type tuple pointer
+;
 
 datatype:
 
-	builtin
+	'let'
+|	builtin
 |	tuple
 |	'typeof' label
 |	label

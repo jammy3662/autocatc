@@ -12,7 +12,8 @@
 
 #define PROGRAM_NAME "autocatc"
 
-int test_scanner();
+int test_scanner ();
+int test_parser ();
 int (*test)() = test_scanner;
 
 std::ifstream in;
@@ -36,7 +37,7 @@ int main (int argc, char** argv)
 			inputs [i] = FLAG;
 		else
 		if (zero strcmp (argv[i], "parse"))
-			//test = catparse,
+			test = test_parser,
 			inputs [i] = FLAG;
 		else
 			inputs [i] = FILE;
@@ -71,11 +72,8 @@ int main (int argc, char** argv)
 	return 0;
 }
 
-int test_scanner()
+antlr4::ANTLRInputStream antlrInput ()
 {
-	int result;
-	
-	// TODO: visit the parse tree
 	using namespace antlr4;
 	
 	ANTLRInputStream input;
@@ -93,6 +91,17 @@ int test_scanner()
 		printf ("Defaulting to stdin for input,,,\n"),
 		input.load (std::cin);
 	
+	return input;
+}
+
+int test_scanner()
+{
+	int result;
+	
+	using namespace antlr4;
+	
+	ANTLRInputStream input = antlrInput ();
+	
 	catLexer lexer (&input);
 	CommonTokenStream tokens (&lexer);
 	
@@ -103,6 +112,26 @@ int test_scanner()
 		printf ("%s\n", token->getText().c_str());
 	}
 	
+	
+	return result;
+}
+
+int test_parser ()
+{
+	int result;
+	
+	using namespace antlr4;
+	
+	ANTLRInputStream input = antlrInput ();
+	
+	catLexer lexer (&input);
+	CommonTokenStream tokens (&lexer);
+	catParser parser (&tokens);
+	
+	
+	tree::ParseTree* tree = parser.block ();
+	
+	printf ("%s\n", tree->toStringTree (&parser, true).c_str ());
 	
 	return result;
 }
